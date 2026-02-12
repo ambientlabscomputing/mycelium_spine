@@ -1,5 +1,6 @@
 # Underleaf Mycelium Spine (UMS) Configuration - E2E Testing
-log_level: "debug"gather_format: "text"
+log_level: "debug"
+log_format: "text"
 log_to_stderr: true
 log_to_file: false
 
