@@ -1,503 +1,423 @@
 package sdk
-package sdk
 
 import (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	return nil	close(c.sendCh)	close(c.errors)	close(c.deliveries)	}		return c.conn.Close()	if c.conn != nil {	c.wg.Wait()	}		c.stream.CloseSend()	if c.stream != nil {	}		c.cancel()	if c.cancel != nil {	c.mu.Unlock()	c.closed = true	}		return nil		c.mu.Unlock()	if c.closed {	c.mu.Lock()func (c *Client) Close() error {// Close gracefully closes the client}	return c.closed	defer c.mu.RUnlock()	c.mu.RLock()func (c *Client) isClosed() bool {// isClosed checks if client is closed}	return c.resumeToken	defer c.mu.RUnlock()	c.mu.RLock()func (c *Client) ResumeToken() string {// ResumeToken returns the current resume token}	return c.sessionID	defer c.mu.RUnlock()	c.mu.RLock()func (c *Client) SessionID() string {// SessionID returns the current session ID}	return c.errorsfunc (c *Client) Errors() <-chan error {// Errors returns channel of error events}	return c.deliveriesfunc (c *Client) Deliveries() <-chan *umsv1.DeliverFrame {// Deliveries returns channel of delivered messages}	}		return ErrSessionClosed	case <-c.ctx.Done():		return nil	case c.sendCh <- frame:	select {	}		},			},				Hint: hint,			FlowHint: &umsv1.FlowHintFrame{		Frame: &umsv1.ClientFrame_FlowHint{	frame := &umsv1.ClientFrame{	c.mu.RUnlock()	}		return ErrNotConnected		c.mu.RUnlock()	if c.stream == nil {	c.mu.RLock()func (c *Client) FlowHint(hint string) error {// FlowHint sends backpressure hint}	}		return ErrSessionClosed	case <-c.ctx.Done():		return nil	case c.sendCh <- frame:	select {	}		},			},				ClientTimeMs: time.Now().UnixMilli(),			Ping: &umsv1.PingFrame{		Frame: &umsv1.ClientFrame_Ping{	frame := &umsv1.ClientFrame{	c.mu.RUnlock()	}		return ErrNotConnected		c.mu.RUnlock()	if c.stream == nil {	c.mu.RLock()func (c *Client) Ping() error {// Ping sends heartbeat ping}	}		return ErrSessionClosed	case <-c.ctx.Done():		return nil	case c.sendCh <- frame:	select {	}		},			},				Reason:    reason,				Seq:       seq,				MailboxId: mailboxID,			Nack: &umsv1.NackFrame{		Frame: &umsv1.ClientFrame_Nack{	frame := &umsv1.ClientFrame{	c.mu.RUnlock()	}		return ErrNotConnected		c.mu.RUnlock()	if c.stream == nil {	c.mu.RLock()func (c *Client) Nack(mailboxID string, seq uint64, reason string) error {// Nack sends negative acknowledgment}	}		return ErrSessionClosed	case <-c.ctx.Done():		return nil	case c.sendCh <- frame:	select {	}		},			},				Seqs:      seqs,				MailboxId: mailboxID,			AckSet: &umsv1.AckSetFrame{		Frame: &umsv1.ClientFrame_AckSet{	frame := &umsv1.ClientFrame{	c.mu.RUnlock()	}		return ErrNotConnected		c.mu.RUnlock()	if c.stream == nil {	c.mu.RLock()func (c *Client) AckSet(mailboxID string, seqs []uint64) error {// AckSet sends selective acknowledgments}	}		return ErrSessionClosed	case <-c.ctx.Done():		return nil	case c.sendCh <- frame:	select {	}		},			},				SeqAcked:  seq,				MailboxId: mailboxID,			Ack: &umsv1.AckFrame{		Frame: &umsv1.ClientFrame_Ack{	frame := &umsv1.ClientFrame{	c.mu.RUnlock()	}		return ErrNotConnected		c.mu.RUnlock()	if c.stream == nil {	c.mu.RLock()func (c *Client) Ack(mailboxID string, seq uint64) error {// Ack sends cumulative acknowledgment}	}		return ErrSessionClosed	case <-c.ctx.Done():		return nil	case c.sendCh <- frame:	select {	}		},			},				Targets: targets,			Subscribe: &umsv1.SubscribeFrame{		Frame: &umsv1.ClientFrame_Subscribe{	frame := &umsv1.ClientFrame{	c.mu.RUnlock()	}		return ErrNotConnected		c.mu.RUnlock()	if c.stream == nil {	c.mu.RLock()func (c *Client) Subscribe(targets []*umsv1.Target) error {// Subscribe subscribes to mailboxes by target}	}		c.logger.Warn("unknown server frame type")	default:		c.errors <- fmt.Errorf("server error: %s - %s", f.Error.Code, f.Error.Message)			"retryable", f.Error.Retryable)			"message", f.Error.Message,			"code", f.Error.Code,		c.logger.Error("server error frame",	case *umsv1.ServerFrame_Error:		c.logger.Debug("pong received", "server_time", f.Pong.ServerTimeMs)	case *umsv1.ServerFrame_Pong:		c.logger.Info("subscription confirmed", "mailboxes", f.SubscribeOk.MailboxIds)	case *umsv1.ServerFrame_SubscribeOk:		c.deliveries <- f.Deliver	case *umsv1.ServerFrame_Deliver:	switch f := frame.Frame.(type) {func (c *Client) handleServerFrame(frame *umsv1.ServerFrame) {// handleServerFrame processes incoming server frames}	}		}			}				c.logger.Error("heartbeat failed", "error", err)			if err := c.Ping(); err != nil {		case <-ticker.C:			return		case <-c.ctx.Done():		select {	for {	defer ticker.Stop()	ticker := time.NewTicker(c.config.HeartbeatInterval)	defer c.wg.Done()func (c *Client) heartbeatPump() {// heartbeatPump sends periodic pings}	}		}			}				return				c.errors <- err				c.logger.Error("send error", "error", err)			if err := c.stream.Send(frame); err != nil {		case frame := <-c.sendCh:			return		case <-c.ctx.Done():		select {	for {	defer c.wg.Done()func (c *Client) sendPump() {// sendPump sends frames to the server}	}		c.handleServerFrame(frame)		}			return			c.errors <- err			c.logger.Error("receive error", "error", err)			}				return			if err == io.EOF || c.isClosed() {		if err != nil {		frame, err := c.stream.Recv()	for {	defer c.wg.Done()func (c *Client) receivePump() {// receivePump receives frames from the server}	return nil	go c.heartbeatPump()	go c.sendPump()	go c.receivePump()	c.wg.Add(3)	// Start background goroutines	}		return fmt.Errorf("%w: expected welcome or resume_ok", ErrInvalidFrame)		conn.Close()		stream.CloseSend()	default:		return fmt.Errorf("server error: %s - %s", frame.Error.Code, frame.Error.Message)		conn.Close()		stream.CloseSend()	case *umsv1.ServerFrame_Error:		return fmt.Errorf("%w: %s", ErrResumeDenied, frame.ResumeDenied.Reason)		conn.Close()		stream.CloseSend()	case *umsv1.ServerFrame_ResumeDenied:			"epoch", c.sessionEpoch)			"session_id", c.sessionID,		c.logger.Info("session resumed",		c.policy = frame.ResumeOk.Policy		c.resumeToken = frame.ResumeOk.ResumeToken		c.sessionEpoch = frame.ResumeOk.SessionEpoch		c.sessionID = frame.ResumeOk.SessionId	case *umsv1.ServerFrame_ResumeOk:			"epoch", c.sessionEpoch)			"session_id", c.sessionID,		c.logger.Info("session established",		c.policy = frame.Welcome.Policy		c.resumeToken = frame.Welcome.ResumeToken		c.sessionEpoch = frame.Welcome.SessionEpoch		c.sessionID = frame.Welcome.SessionId	case *umsv1.ServerFrame_Welcome:	switch frame := serverFrame.Frame.(type) {	}		return fmt.Errorf("failed to receive welcome: %w", err)		conn.Close()		stream.CloseSend()	if err != nil {	serverFrame, err := stream.Recv()	// Wait for Welcome or ResumeOk	}		return fmt.Errorf("failed to send hello: %w", err)		conn.Close()		stream.CloseSend()	if err := stream.Send(helloFrame); err != nil {	}		},			},				ClientFeatures:  c.config.ClientFeatures,				ResumeToken:     c.config.ResumeToken,				DeviceFingerprint: c.config.DeviceFingerprint,				OrgId:           c.config.OrgID,				ServerId:        c.config.ServerID,				ProtocolVersion: c.config.ProtocolVersion,			Hello: &umsv1.HelloFrame{		Frame: &umsv1.ClientFrame_Hello{	helloFrame := &umsv1.ClientFrame{	// Send Hello frame	c.stream = stream	}		return fmt.Errorf("failed to create stream: %w", err)		conn.Close()	if err != nil {	stream, err := c.client.Connect(streamCtx)	c.cancel = cancel	c.ctx = streamCtx	streamCtx, cancel := context.WithCancel(context.Background())	// Create stream	c.client = umsv1.NewSpineStreamClient(conn)	c.conn = conn	}		return fmt.Errorf("failed to dial: %w", err)	if err != nil {	conn, err := grpc.NewClient(c.addr, opts...)	}		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))	} else {		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(c.config.TLSConfig)))	if c.config.TLSConfig != nil {	var opts []grpc.DialOption	// Create gRPC connection	}		return ErrAlreadyRunning	if c.stream != nil {	defer c.mu.Unlock()	c.mu.Lock()func (c *Client) Connect(ctx context.Context) error {// Connect establishes the bidirectional stream and sends Hello}	}, nil		sendCh:     make(chan *umsv1.ClientFrame, 100),		errors:     make(chan error, 10),		deliveries: make(chan *umsv1.DeliverFrame, 100),		logger:     config.Logger,		addr:       addr,		config:     config,	return &Client{	}		config.Logger = slog.Default()	if config.Logger == nil {	}		config.ReconnectDelay = 5 * time.Second	if config.ReconnectDelay == 0 {	}		config.HeartbeatInterval = 30 * time.Second	if config.HeartbeatInterval == 0 {	}		config.ProtocolVersion = "1.0"	if config.ProtocolVersion == "" {	// Set defaultsfunc NewClient(addr string, config ClientConfig) (*Client, error) {// NewClient creates a new Mycelium Spine streaming client}	closed bool	mu     sync.RWMutex	wg     sync.WaitGroup	cancel context.CancelFunc	ctx    context.Context	// Control	sendCh     chan *umsv1.ClientFrame	errors     chan error	deliveries chan *umsv1.DeliverFrame	// Channels	policy       *umsv1.SessionPolicy	resumeToken  string	sessionEpoch uint64	sessionID    string	// Session state	client umsv1.SpineStreamClient	stream umsv1.SpineStream_ConnectClient	conn   *grpc.ClientConn	logger *slog.Logger	addr   string	config ClientConfigtype Client struct {// Client is a bidirectional streaming client for Mycelium Spine}	ReconnectDelay     time.Duration     // Reconnect delay (default: 5s)	HeartbeatInterval  time.Duration     // Heartbeat interval (default: 30s)	Logger             *slog.Logger      // Logger (optional)	TLSConfig          *tls.Config       // TLS configuration (optional)	ClientFeatures     map[string]bool   // Feature flags (optional)	ResumeToken        string            // For session resumption (optional)	DeviceFingerprint  string            // TPM/SW attestation (optional)	ProtocolVersion    string            // Protocol version (default: "1.0")	OrgID              string            // Organization ID	ServerID           string            // Stable Underleaf server identitytype ClientConfig struct {// ClientConfig holds configuration for the streaming client)	ErrAlreadyRunning = errors.New("client already running")	ErrResumeDenied   = errors.New("session resume denied")	ErrInvalidFrame   = errors.New("invalid frame received")	ErrSessionClosed  = errors.New("session closed")	ErrNotConnected   = errors.New("client not connected")var (// Common errors)	"google.golang.org/grpc/credentials/insecure"	"google.golang.org/grpc/credentials"	"google.golang.org/grpc"	umsv1 "github.com/ambientlabscomputing/mycelium_spine/proto/ums/v1"	"time"	"sync"	"log/slog"	"io"	"fmt"	"errors"	"crypto/tls"	"context"
+	"context"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"io"
+	"sync"
+	"time"
+
+	umsv1 "github.com/ambientlabscomputing/mycelium_spine/proto/ums/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+// Errors
+var (
+	ErrNotConnected   = errors.New("client not connected")
+	ErrSessionClosed  = errors.New("session closed")
+	ErrInvalidConfig  = errors.New("invalid client configuration")
+)
+
+// ClientConfig configures a Client
+type ClientConfig struct {
+	ServerID          string
+	OrgID             string
+	ProtocolVersion   string
+	TLSConfig         *tls.Config
+	ResumeToken       string
+	HeartbeatInterval time.Duration
+}
+
+// Client is a bidirectional streaming client for Mycelium Spine
+type Client struct {
+	addr   string
+	config ClientConfig
+
+	conn   *grpc.ClientConn
+	client umsv1.SpineStreamClient
+	stream umsv1.SpineStream_ConnectClient
+
+	mu           sync.RWMutex
+	sessionID    string
+	connected    bool
+	resumeToken  string
+	
+	deliveries chan *umsv1.DeliverFrame
+	errors     chan error
+	sendCh     chan *umsv1.ClientFrame
+	
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+}
+
+// NewClient creates a new streaming client
+func NewClient(addr string, config ClientConfig) (*Client, error) {
+	if config.ServerID == "" || config.OrgID == "" {
+		return nil, ErrInvalidConfig
+	}
+	if config.ProtocolVersion == "" {
+		config.ProtocolVersion = "1.0"
+	}
+	if config.HeartbeatInterval == 0 {
+		config.HeartbeatInterval = 30 * time.Second
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &Client{
+		addr:       addr,
+		config:     config,
+		deliveries: make(chan *umsv1.DeliverFrame, 100),
+		errors:     make(chan error, 10),
+		sendCh:     make(chan *umsv1.ClientFrame, 100),
+		ctx:        ctx,
+		cancel:     cancel,
+	}, nil
+}
+
+// Connect establishes the streaming connection
+func (c *Client) Connect(ctx context.Context) error {
+	var grpcOpts []grpc.DialOption
+	if c.config.TLSConfig != nil {
+		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.config.TLSConfig)))
+	} else {
+		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+
+	conn, err := grpc.NewClient(c.addr, grpcOpts...)
+	if err != nil {
+		return fmt.Errorf("failed to dial: %w", err)
+	}
+
+	c.conn = conn
+	c.client = umsv1.NewSpineStreamClient(conn)
+
+	stream, err := c.client.Connect(c.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create stream: %w", err)
+	}
+
+	c.stream = stream
+
+	// Send Hello with optional resume token
+	helloFrame := &umsv1.ClientFrame{
+		Frame: &umsv1.ClientFrame_Hello{
+			Hello: &umsv1.HelloFrame{
+				ProtocolVersion: c.config.ProtocolVersion,
+				ServerId:        c.config.ServerID,
+				OrgId:           c.config.OrgID,
+				ResumeToken:     c.config.ResumeToken,
+			},
+		},
+	}
+
+	if err := stream.Send(helloFrame); err != nil {
+		return fmt.Errorf("failed to send hello: %w", err)
+	}
+
+	// Wait for Welcome or ResumeOk
+	frame, err := stream.Recv()
+	if err != nil {
+		return fmt.Errorf("failed to receive welcome: %w", err)
+	}
+
+	switch f := frame.Frame.(type) {
+	case *umsv1.ServerFrame_Welcome:
+		c.mu.Lock()
+		c.sessionID = f.Welcome.SessionId
+		c.resumeToken = f.Welcome.ResumeToken
+		c.connected = true
+		c.mu.Unlock()
+	case *umsv1.ServerFrame_ResumeOk:
+		c.mu.Lock()
+		c.sessionID = f.ResumeOk.SessionId
+		c.connected = true
+		c.mu.Unlock()
+	case *umsv1.ServerFrame_Error:
+		return fmt.Errorf("server error: %s", f.Error.Message)
+	default:
+		return fmt.Errorf("unexpected frame type: %T", f)
+	}
+
+	// Start pumps
+	c.wg.Add(3)
+	go c.receivePump()
+	go c.sendPump()
+	go c.heartbeatPump()
+
+	return nil
+}
+
+// receivePump receives frames from the server
+func (c *Client) receivePump() {
+	defer c.wg.Done()
+
+	for {
+		frame, err := c.stream.Recv()
+		if err != nil {
+			if err == io.EOF || c.ctx.Err() != nil {
+				return
+			}
+			c.errors <- fmt.Errorf("recv error: %w", err)
+			return
+		}
+
+		switch f := frame.Frame.(type) {
+		case *umsv1.ServerFrame_Deliver:
+			select {
+			case c.deliveries <- f.Deliver:
+			case <-c.ctx.Done():
+				return
+			}
+		case *umsv1.ServerFrame_Pong:
+			// Heartbeat response received
+		case *umsv1.ServerFrame_Error:
+			c.errors <- fmt.Errorf("server error: %s", f.Error.Message)
+		}
+	}
+}
+
+// sendPump sends frames to the server
+func (c *Client) sendPump() {
+	defer c.wg.Done()
+
+	for {
+		select {
+		case frame := <-c.sendCh:
+			if err := c.stream.Send(frame); err != nil {
+				c.errors <- fmt.Errorf("send error: %w", err)
+				return
+			}
+		case <-c.ctx.Done():
+			return
+		}
+	}
+}
+
+// heartbeatPump sends periodic pings
+func (c *Client) heartbeatPump() {
+	defer c.wg.Done()
+
+	ticker := time.NewTicker(c.config.HeartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := c.Ping(); err != nil {
+				c.errors <- fmt.Errorf("ping error: %w", err)
+			}
+		case <-c.ctx.Done():
+			return
+		}
+	}
+}
+
+// Subscribe subscribes to the specified targets
+func (c *Client) Subscribe(targets []*umsv1.Target) error {
+	c.mu.RLock()
+	connected := c.connected
+	c.mu.RUnlock()
+
+	if !connected {
+		return ErrNotConnected
+	}
+
+	frame := &umsv1.ClientFrame{
+		Frame: &umsv1.ClientFrame_Subscribe{
+			Subscribe: &umsv1.SubscribeFrame{
+				Targets: targets,
+			},
+		},
+	}
+
+	select {
+	case c.sendCh <- frame:
+		return nil
+	case <-c.ctx.Done():
+		return ErrSessionClosed
+	}
+}
+
+// Ack sends a cumulative acknowledgment
+func (c *Client) Ack(mailboxID string, seq uint64) error {
+	c.mu.RLock()
+	connected := c.connected
+	c.mu.RUnlock()
+
+	if !connected {
+		return ErrNotConnected
+	}
+
+	frame := &umsv1.ClientFrame{
+		Frame: &umsv1.ClientFrame_Ack{
+			Ack: &umsv1.AckFrame{
+				MailboxId: mailboxID,
+				SeqAcked:  seq,
+			},
+		},
+	}
+
+	select {
+	case c.sendCh <- frame:
+		return nil
+	case <-c.ctx.Done():
+		return ErrSessionClosed
+	}
+}
+
+// AckSet acknowledges multiple sequence numbers
+func (c *Client) AckSet(mailboxID string, seqs []uint64) error {
+	c.mu.RLock()
+	connected := c.connected
+	c.mu.RUnlock()
+
+	if !connected {
+		return ErrNotConnected
+	}
+
+	frame := &umsv1.ClientFrame{
+		Frame: &umsv1.ClientFrame_AckSet{
+			AckSet: &umsv1.AckSetFrame{
+				MailboxId: mailboxID,
+				Seqs:      seqs,
+			},
+		},
+	}
+
+	select {
+	case c.sendCh <- frame:
+		return nil
+	case <-c.ctx.Done():
+		return ErrSessionClosed
+	}
+}
+
+// Nack sends a negative acknowledgment
+func (c *Client) Nack(mailboxID string, seq uint64, reason string) error {
+	c.mu.RLock()
+	connected := c.connected
+	c.mu.RUnlock()
+
+	if !connected {
+		return ErrNotConnected
+	}
+
+	frame := &umsv1.ClientFrame{
+		Frame: &umsv1.ClientFrame_Nack{
+			Nack: &umsv1.NackFrame{
+				MailboxId: mailboxID,
+				Seq:       seq,
+				Reason:    reason,
+			},
+		},
+	}
+
+	select {
+	case c.sendCh <- frame:
+		return nil
+	case <-c.ctx.Done():
+		return ErrSessionClosed
+	}
+}
+
+// Ping sends a heartbeat ping
+func (c *Client) Ping() error {
+	c.mu.RLock()
+	connected := c.connected
+	c.mu.RUnlock()
+
+	if !connected {
+		return ErrNotConnected
+	}
+
+	frame := &umsv1.ClientFrame{
+		Frame: &umsv1.ClientFrame_Ping{
+			Ping: &umsv1.PingFrame{
+				ClientTimeMs: currentTimeMs(),
+			},
+		},
+	}
+
+	select {
+	case c.sendCh <- frame:
+		return nil
+	case <-c.ctx.Done():
+		return ErrSessionClosed
+	}
+}
+
+// FlowHint sends a flow control hint
+func (c *Client) FlowHint(ready bool) error {
+	c.mu.RLock()
+	connected := c.connected
+	c.mu.RUnlock()
+
+	if !connected {
+		return ErrNotConnected
+	}
+
+	hint := "ready"
+	if !ready {
+		hint = "overloaded"
+	}
+
+	frame := &umsv1.ClientFrame{
+		Frame: &umsv1.ClientFrame_FlowHint{
+			FlowHint: &umsv1.FlowHintFrame{
+				Hint: hint,
+			},
+		},
+	}
+
+	select {
+	case c.sendCh <- frame:
+		return nil
+	case <-c.ctx.Done():
+		return ErrSessionClosed
+	}
+}
+
+// SessionID returns the current session ID
+func (c *Client) SessionID() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.sessionID
+}
+
+// ResumeToken returns the current resume token
+func (c *Client) ResumeToken() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.resumeToken
+}
+
+// Deliveries returns the channel for receiving delivered envelopes
+func (c *Client) Deliveries() <-chan *umsv1.DeliverFrame {
+	return c.deliveries
+}
+
+// Errors returns the channel for receiving errors
+func (c *Client) Errors() <-chan error {
+	return c.errors
+}
+
+// Close closes the client connection
+func (c *Client) Close() error {
+	c.cancel()
+	c.wg.Wait()
+
+	close(c.deliveries)
+	close(c.errors)
+	close(c.sendCh)
+
+	if c.conn != nil {
+		return c.conn.Close()
+	}
+	return nil
+}

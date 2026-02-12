@@ -1,21 +1,19 @@
 package sdk
-package sdk
 
 import (
 	"crypto/rand"
+	"encoding/hex"
+	"time"
+)
 
+// generateID generates a random hex ID
+func generateID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	return time.Now().UnixMilli()func currentTimeMs() int64 {// currentTimeMs returns current Unix timestamp in milliseconds}	return hex.EncodeToString(b)	rand.Read(b)	b := make([]byte, 16)func generateID() string {// generateID generates a random ID for envelopes)	"time"	"encoding/hex"
+// currentTimeMs returns current Unix time in milliseconds
+func currentTimeMs() int64 {
+	return time.Now().UnixMilli()
+}

@@ -56,14 +56,22 @@ func NewPublisher(addr string, opts ...PublisherOption) (*Publisher, error) {
 	}, nil
 }
 
-// Publish publishes an envelope to one or more targets
-func (p *Publisher) Publish(ctx context.Context, envelope *umsv1.Envelope, targets []*umsv1.Target) (*umsv1.PublishResponse, error) {
-	// Fill in envelope defaults if needed
-	if envelope.CreatedAtMs == 0 {
-		envelope.CreatedAtMs = currentTimeMs()
+// Close closes the publisher connection
+func (p *Publisher) Close() error {
+	if p.conn != nil {
+		return p.conn.Close()
 	}
+	return nil
+}
+
+// Publish publishes an envelope to the specified targets
+func (p *Publisher) Publish(ctx context.Context, envelope *umsv1.Envelope, targets []*umsv1.Target) (*umsv1.PublishResponse, error) {
+	// Fill in envelope defaults
 	if envelope.EnvelopeId == "" {
 		envelope.EnvelopeId = generateID()
+	}
+	if envelope.CreatedAtMs == 0 {
+		envelope.CreatedAtMs = currentTimeMs()
 	}
 
 	req := &umsv1.PublishRequest{
@@ -71,22 +79,13 @@ func (p *Publisher) Publish(ctx context.Context, envelope *umsv1.Envelope, targe
 		Targets:  targets,
 	}
 
-	resp, err := p.client.Publish(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("publish failed: %w", err)
-	}
-
-	if !resp.Success {
-		return nil, fmt.Errorf("publish rejected: %s", resp.Error)
-	}
-
-	return resp, nil
+	return p.client.Publish(ctx, req)
 }
 
-// PublishCommand is a helper to publish a command envelope
-func (p *Publisher) PublishCommand(ctx context.Context, envelopeType string, payload []byte, orgID string, targets []*umsv1.Target) (*umsv1.PublishResponse, error) {
+// PublishCommand is a helper for publishing COMMAND QoS messages
+func (p *Publisher) PublishCommand(ctx context.Context, msgType string, payload []byte, orgID string, targets []*umsv1.Target) (*umsv1.PublishResponse, error) {
 	envelope := &umsv1.Envelope{
-		Type:        envelopeType,
+		Type:        msgType,
 		Qos:         umsv1.QoS_QOS_COMMAND,
 		Payload:     payload,
 		OrgId:       orgID,
@@ -95,10 +94,10 @@ func (p *Publisher) PublishCommand(ctx context.Context, envelopeType string, pay
 	return p.Publish(ctx, envelope, targets)
 }
 
-// PublishControl is a helper to publish a control envelope
-func (p *Publisher) PublishControl(ctx context.Context, envelopeType string, payload []byte, orgID string, targets []*umsv1.Target) (*umsv1.PublishResponse, error) {
+// PublishControl is a helper for publishing CONTROL QoS messages
+func (p *Publisher) PublishControl(ctx context.Context, msgType string, payload []byte, orgID string, targets []*umsv1.Target) (*umsv1.PublishResponse, error) {
 	envelope := &umsv1.Envelope{
-		Type:        envelopeType,
+		Type:        msgType,
 		Qos:         umsv1.QoS_QOS_CONTROL,
 		Payload:     payload,
 		OrgId:       orgID,
@@ -107,22 +106,14 @@ func (p *Publisher) PublishControl(ctx context.Context, envelopeType string, pay
 	return p.Publish(ctx, envelope, targets)
 }
 
-// PublishTelemetry is a helper to publish a telemetry envelope
-func (p *Publisher) PublishTelemetry(ctx context.Context, envelopeType string, payload []byte, orgID string, targets []*umsv1.Target) (*umsv1.PublishResponse, error) {
+// PublishTelemetry is a helper for publishing TELEMETRY QoS messages
+func (p *Publisher) PublishTelemetry(ctx context.Context, msgType string, payload []byte, orgID string, targets []*umsv1.Target) (*umsv1.PublishResponse, error) {
 	envelope := &umsv1.Envelope{
-		Type:        envelopeType,
+		Type:        msgType,
 		Qos:         umsv1.QoS_QOS_TELEMETRY,
 		Payload:     payload,
 		OrgId:       orgID,
 		RequiresAck: false,
 	}
 	return p.Publish(ctx, envelope, targets)
-}
-
-// Close closes the publisher connection
-func (p *Publisher) Close() error {
-	if p.conn != nil {
-		return p.conn.Close()
-	}
-	return nil
 }

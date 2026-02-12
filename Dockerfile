@@ -3,7 +3,7 @@
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make protobuf-dev
@@ -50,7 +50,9 @@ WORKDIR /app
 COPY --from=builder /build/spine .
 
 # Copy config example (actual config should be mounted)
+COPY --from=builder /build/config.yaml .
 COPY --from=builder /build/config.yaml.example .
+COPY --from=builder /build/config.e2e.yaml .
 
 # Create directories for certs and logs
 RUN mkdir -p /app/certs /app/logs && \

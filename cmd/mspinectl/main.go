@@ -1,17 +1,15 @@
-package mspinectl
+package main
 
+import (
+	"fmt"
+	"os"
 
+	"github.com/ambientlabscomputing/mycelium_spine/cmd/mspinectl/cmd"
+)
 
-
-
-
-
-
-
-
-
-
-
-
-
-}	}		os.Exit(1)		fmt.Fprintf(os.Stderr, "Error: %v\n", err)	if err := cmd.Execute(); err != nil {func main() {)	"github.com/ambientlabscomputing/mycelium_spine/cmd/mspinectl/cmd"	"os"	"fmt"import (package main
+func main() {
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}

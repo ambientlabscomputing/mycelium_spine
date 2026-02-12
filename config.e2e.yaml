@@ -1,0 +1,27 @@
+# Underleaf Mycelium Spine (UMS) Configuration - E2E Testing
+log_level: "debug"gather_format: "text"
+log_to_stderr: true
+log_to_file: false
+
+grpc:
+  port: 9090
+  tls:
+    client_auth: "none"
+
+mongo:
+  uri: "mongodb://admin:password123@mongodb:27017"
+  database: "mycelium_spine"
+
+flow_control:
+  max_inflight_total: 10000
+  max_inflight_command: 1000
+  max_inflight_control: 5000
+  max_inflight_telemetry: 10000
+  max_batch_bytes: 1048576
+
+workers:
+  session_pool_size: 10
+  delivery_pool_size: 20
+  ack_pool_size: 10
+  mailbox_pool_size: 10
+  task_queue_size: 1000

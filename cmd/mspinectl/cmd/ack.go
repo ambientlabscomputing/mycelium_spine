@@ -1,5 +1,4 @@
 package cmd
-package cmd
 
 import (
 	"context"
@@ -54,28 +53,27 @@ func runAck(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
+	// Connect
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := client.Connect(ctx); err != nil {
+		cancel()
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	cancel()
 
+	if verbose {
+		fmt.Printf("Connected with session ID: %s\n", client.SessionID())
+	}
 
+	// Send acknowledgment
+	if err := client.Ack(ackMailboxID, ackSeq); err != nil {
+		return fmt.Errorf("failed to send ack: %w", err)
+	}
 
+	fmt.Printf("Acknowledged mailbox %s up to sequence %d\n", ackMailboxID, ackSeq)
 
+	// Give server time to process
+	time.Sleep(100 * time.Millisecond)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	return nil	time.Sleep(100 * time.Millisecond)	// Give time for ack to be sent	fmt.Printf("✓ Acknowledged mailbox %s up to seq %d\n", ackMailboxID, ackSeq)	}		return fmt.Errorf("failed to send ack: %w", err)	if err := client.Ack(ackMailboxID, ackSeq); err != nil {	// Send ack	}		fmt.Printf("Connected (session: %s)\n", client.SessionID())	if verbose {	}		return fmt.Errorf("failed to connect: %w", err)	if err := client.Connect(ctx); err != nil {	defer cancel()	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)	// Connect
+	return nil
+}
