@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # MongoDB for Mycelium Spine
+  mongodb:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - mspine-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Mycelium Spine Service
+  mycelium-spine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "9090:9090"
+    environment:
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017
+      - MONGODB_DATABASE=mycelium_spine
+      - GRPC_PORT=9090
+      - LOG_LEVEL=info
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - mspine-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9090"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Test Client 1 (Server A)
+  test-client-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.testclient
+    environment:
+      - MSPINE_SERVER=mycelium-spine:9090
+      - MSPINE_SERVER_ID=test-server-01
+      - MSPINE_ORG_ID=test-org
+    depends_on:
+      mycelium-spine:
+        condition: service_healthy
+    networks:
+      - mspine-network
+    command: sleep infinity
+
+  # Test Client 2 (Server B)
+  test-client-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.testclient
+    environment:
+      - MSPINE_SERVER=mycelium-spine:9090
+      - MSPINE_SERVER_ID=test-server-02
+      - MSPINE_ORG_ID=test-org
+    depends_on:
+      mycelium-spine:
+        condition: service_healthy
+    networks:
+      - mspine-network
+    command: sleep infinity
+
+  # Test Client 3 (Cluster member)
+  test-client-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.testclient
+    environment:
+      - MSPINE_SERVER=mycelium-spine:9090
+      - MSPINE_SERVER_ID=test-cluster-node-01
+      - MSPINE_ORG_ID=test-org
+    depends_on:
+      mycelium-spine:
+        condition: service_healthy
+    networks:
+      - mspine-network
+    command: sleep infinity
+
+  # Publisher/Control Plane Client
+  publisher-client:
+    build:
+      context: .
+      dockerfile: Dockerfile.testclient
+    environment:
+      - MSPINE_SERVER=mycelium-spine:9090
+      - MSPINE_SERVER_ID=control-plane
+      - MSPINE_ORG_ID=test-org
+    depends_on:
+      mycelium-spine:
+        condition: service_healthy
+    networks:
+      - mspine-network
+    command: sleep infinity
+
+networks:
+  mspine-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

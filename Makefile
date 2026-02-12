@@ -3,6 +3,8 @@
 .PHONY: help
 help:
 	@echo "Underleaf Mycelium Spine (UMS) - Available targets:"
+	@echo ""
+	@echo "Development:"
 	@echo "  proto        - Generate Go code from protobuf definitions"
 	@echo "  deps         - Download and tidy Go dependencies"
 	@echo "  build        - Build the UMS binary"
@@ -11,9 +13,24 @@ help:
 	@echo "  lint         - Run linter"
 	@echo "  format       - Format code"
 	@echo "  clean        - Remove build artifacts"
+	@echo ""
+	@echo "SDK and CLI:"
+	@echo "  sdk-build    - Build SDK"
+	@echo "  cli-build    - Build mspinectl CLI"
+	@echo "  cli-install  - Install mspinectl globally"
+	@echo ""
+	@echo "Docker:"
 	@echo "  docker-build - Build Docker image"
 	@echo "  docker-run   - Run Docker compose stack"
 	@echo "  docker-down  - Stop Docker compose stack"
+	@echo ""
+	@echo "E2E Testing:"
+	@echo "  e2e-build    - Build E2E test containers"
+	@echo "  e2e-test     - Run E2E test suite"
+	@echo "  e2e-up       - Start E2E environment"
+	@echo "  e2e-down     - Stop E2E environment"
+	@echo "  e2e-logs     - View E2E logs"
+	@echo "  e2e-clean    - Clean E2E volumes and images"
 
 # Proto generation
 .PHONY: proto
@@ -102,6 +119,82 @@ docker-down:
 	@echo "Stopping Docker compose stack..."
 	docker-compose down
 	@echo "Stack stopped"
+
+# ============================================================================
+# SDK and CLI Targets
+# ============================================================================
+
+# Build SDK
+.PHONY: sdk-build
+sdk-build:
+	@echo "Building SDK..."
+	cd sdk && go build ./...
+	@echo "SDK build complete"
+
+# Build CLI
+.PHONY: cli-build
+cli-build:
+	@echo "Building mspinectl CLI..."
+	cd cmd/mspinectl && go build -o ../../bin/mspinectl .
+	@echo "CLI build complete: bin/mspinectl"
+
+# Install CLI globally
+.PHONY: cli-install
+cli-install: cli-build
+	@echo "Installing mspinectl..."
+	sudo cp bin/mspinectl /usr/local/bin/
+	@echo "mspinectl installed to /usr/local/bin/"
+
+# ============================================================================
+# E2E Testing Targets
+# ============================================================================
+
+# Build E2E containers
+.PHONY: e2e-build
+e2e-build:
+	@echo "Building E2E test containers..."
+	docker-compose -f docker-compose.e2e.yml build
+	@echo "E2E containers built"
+
+# Run E2E test suite
+.PHONY: e2e-test
+e2e-test:
+	@echo "Running E2E test suite..."
+	chmod +x e2e/test.sh
+	./e2e/test.sh
+
+# Start E2E environment
+.PHONY: e2e-up
+e2e-up:
+	@echo "Starting E2E environment..."
+	docker-compose -f docker-compose.e2e.yml up -d
+	@echo "Waiting for services..."
+	@sleep 15
+	@echo ""
+	@echo "✓ E2E environment is ready!"
+	@echo ""
+	@echo "Example commands:"
+	@echo "  make e2e-logs"
+	@echo "  make e2e-test"
+	@echo "  docker-compose -f docker-compose.e2e.yml exec test-client-1 mspinectl subscribe --target-type server --target-id test-server-01 --auto-ack"
+
+# Stop E2E environment
+.PHONY: e2e-down
+e2e-down:
+	@echo "Stopping E2E environment..."
+	docker-compose -f docker-compose.e2e.yml down
+
+# View E2E logs
+.PHONY: e2e-logs
+e2e-logs:
+	docker-compose -f docker-compose.e2e.yml logs -f
+
+# Clean E2E environment
+.PHONY: e2e-clean
+e2e-clean:
+	@echo "Cleaning E2E environment..."
+	docker-compose -f docker-compose.e2e.yml down -v --rmi all
+	@echo "E2E environment cleaned"
 
 # Install tools
 .PHONY: install-tools

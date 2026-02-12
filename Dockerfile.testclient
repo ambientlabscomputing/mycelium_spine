@@ -1,0 +1,54 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+# Copy go modules for all components
+COPY go.mod go.sum ./
+COPY proto/go.mod proto/go.sum ./proto/
+COPY sdk/go.mod ./sdk/
+COPY cmd/mspinectl/go.mod ./cmd/mspinectl/
+
+# Download dependencies
+WORKDIR /build
+RUN go mod download
+WORKDIR /build/proto
+RUN go mod download
+WORKDIR /build/sdk
+RUN go mod download
+WORKDIR /build/cmd/mspinectl
+RUN go mod download
+
+# Copy source
+WORKDIR /build
+COPY . .
+
+# Build mspinectl
+WORKDIR /build/cmd/mspinectl
+RUN CGO_ENABLED=0 GOOS=linux go build -o /mspinectl -ldflags="-w -s" .
+
+# Runtime stage
+FROM alpine:latest
+
+# Install ca-certificates and useful tools for debugging
+RUN apk --no-cache add ca-certificates curl jq bash
+
+WORKDIR /app
+
+# Copy mspinectl binary
+COPY --from=builder /mspinectl /usr/local/bin/mspinectl
+
+# Make it executable
+RUN chmod +x /usr/local/bin/mspinectl
+
+# Create test user
+RUN addgroup -g 1000 testuser && \
+    adduser -D -u 1000 -G testuser testuser
+
+USER testuser
+
+# Default to shell for interactive testing
+CMD ["/bin/bash"]
