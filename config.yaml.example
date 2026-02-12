@@ -1,0 +1,83 @@
+# Underleaf Mycelium Spine (UMS) Configuration
+# UMS is the cloud↔edge control fabric protocol that replaces Event Bus v4
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+log_level: "info"          # Options: debug, info, warn, error
+log_format: "json"         # Options: json, text
+log_to_stderr: true        # Enable stderr logging
+log_to_file: false         # Enable file logging
+log_file_path: "./logs/spine.log"  # Log file path (if log_to_file is true)
+
+# =============================================================================
+# gRPC Server Configuration
+# =============================================================================
+grpc:
+  port: 9090  # gRPC server port
+
+  # TLS/mTLS configuration (required for production)
+  tls:
+    cert_path: "certs/spine.crt"      # Server certificate
+    key_path: "certs/spine.key"       # Server private key
+    ca_path: "certs/ca.crt"           # CA certificate for client verification
+    client_auth: "require_and_verify" # Options: none, request, require, require_and_verify
+
+# =============================================================================
+# MongoDB Configuration
+# =============================================================================
+mongo:
+  uri: "mongodb://localhost:27017"   # MongoDB connection URI
+  database: "mycelium_spine"         # Database name
+  user: "spine_user"                 # MongoDB username (optional)
+  password: "****"                   # MongoDB password (optional, use SecretString)
+
+# =============================================================================
+# Mailbox Configuration
+# =============================================================================
+mailbox:
+  default_retention_seconds: 86400      # 24 hours (default retention for envelopes)
+  max_bytes_per_mailbox: 104857600      # 100MB (max storage per mailbox)
+  max_envelopes_per_mailbox: 100000     # Max number of envelopes per mailbox
+
+# =============================================================================
+# Session Management
+# =============================================================================
+session:
+  heartbeat_interval_seconds: 15        # PING/PONG interval
+  heartbeat_timeout_multiplier: 3       # Missed heartbeats before eviction (15s * 3 = 45s)
+  resume_token_ttl_seconds: 3600        # Resume token validity (1 hour)
+  max_sessions_per_server_id: 1         # Concurrent sessions per server_id (1 = kick old session)
+
+# =============================================================================
+# Flow Control Settings
+# =============================================================================
+flow_control:
+  max_inflight_total: 1000              # Total inflight envelopes per session
+  max_inflight_command: 100             # Max inflight COMMAND envelopes
+  max_inflight_control: 500             # Max inflight CONTROL envelopes
+  max_inflight_telemetry: 400           # Max inflight TELEMETRY envelopes
+  max_batch_bytes: 65536                # Max bytes per DELIVER batch (64KB)
+
+# =============================================================================
+# Worker Pool Configuration
+# =============================================================================
+# UMS uses typed worker pools for parallel processing:
+# - SessionWorkers: Handle HELLO, session creation, resume validation
+# - DeliveryWorkers: Push envelopes from mailboxes to active streams
+# - AckWorkers: Process ACK/ACK_SET frames, advance mailbox cursors
+# - MailboxWorkers: Append envelopes, run retention cleanup, handle NACK
+workers:
+  session_pool_size: 4      # Number of session management workers
+  delivery_pool_size: 8     # Number of delivery workers
+  ack_pool_size: 4          # Number of ack processing workers
+  mailbox_pool_size: 4      # Number of mailbox workers
+  task_queue_size: 1024     # Per-pool channel buffer size
+
+# =============================================================================
+# OAuth 2.0 Authentication
+# =============================================================================
+# Used to validate JWT tokens from connecting clients (Mycelium Mesh Agent)
+auth:
+  auth_domain: "https://auth.underleaf.io"       # Auth0/OIDC domain
+  auth_audience: "https://api.underleaf.io"      # JWT audience claim

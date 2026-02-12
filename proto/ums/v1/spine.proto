@@ -1,0 +1,222 @@
+syntax = "proto3";
+
+package ums.v1;
+
+option go_package = "github.com/ambientlabscomputing/mycelium_spine/proto/ums/v1;umsv1";
+
+// SpineStream is the primary bidirectional streaming service for UMS
+service SpineStream {
+  // Connect initiates a bidirectional stream for client-server communication
+  // Clients send ClientFrame messages, server responds with ServerFrame messages
+  rpc Connect(stream ClientFrame) returns (stream ServerFrame);
+}
+
+// SpinePublish is the service used by server_api/UCRS to publish envelopes
+service SpinePublish {
+  // Publish pushes envelopes into target mailboxes
+  rpc Publish(PublishRequest) returns (PublishResponse);
+}
+
+// ============================================================================
+// Client → Server Frame Types
+// ============================================================================
+
+message ClientFrame {
+  oneof frame {
+    HelloFrame hello = 1;
+    AckFrame ack = 2;
+    AckSetFrame ack_set = 3;
+    SubscribeFrame subscribe = 4;
+    PingFrame ping = 5;
+    FlowHintFrame flow_hint = 6;
+    NackFrame nack = 7;
+  }
+}
+
+// HelloFrame is the first frame sent by client to establish session
+message HelloFrame {
+  string protocol_version = 1;
+  string server_id = 2;  // Stable Underleaf identity
+  string org_id = 3;
+  string device_fingerprint = 4;  // TPM/SW attestation hash (optional)
+  string capabilities_summary_hash = 5;  // For future optimization
+  string resume_token = 6;  // For session resumption
+  map<string, bool> client_features = 7;  // supports_compression, supports_batch_ack, etc.
+}
+
+// AckFrame acknowledges cumulative delivery up to seq
+message AckFrame {
+  string mailbox_id = 1;
+  uint64 seq_acked = 2;  // All seq <= seq_acked are processed and committed
+}
+
+// AckSetFrame acknowledges selective sequence numbers (out-of-order processing)
+message AckSetFrame {
+  string mailbox_id = 1;
+  repeated uint64 seqs = 2;
+}
+
+// SubscribeFrame subscribes to mailboxes by target
+message SubscribeFrame {
+  repeated Target targets = 1;
+  map<string, string> filters = 2;  // Optional filters (discouraged)
+  QoSPreferences qos_preferences = 3;
+}
+
+message QoSPreferences {
+  bool telemetry_disabled = 1;
+  bool control_collapsed = 2;
+}
+
+// PingFrame for heartbeat
+message PingFrame {
+  int64 client_time_ms = 1;
+}
+
+// FlowHintFrame indicates client backpressure state
+message FlowHintFrame {
+  string hint = 1;  // "overloaded", "reduce_telemetry", "pause_control", etc.
+}
+
+// NackFrame rejects an envelope (malformed, cannot process)
+message NackFrame {
+  string mailbox_id = 1;
+  uint64 seq = 2;
+  string reason = 3;
+}
+
+// ============================================================================
+// Server → Client Frame Types
+// ============================================================================
+
+message ServerFrame {
+  oneof frame {
+    WelcomeFrame welcome = 1;
+    DeliverFrame deliver = 2;
+    SubscribeOkFrame subscribe_ok = 3;
+    PongFrame pong = 4;
+    ErrorFrame error = 5;
+    ResumeOkFrame resume_ok = 6;
+    ResumeDeniedFrame resume_denied = 7;
+  }
+}
+
+// WelcomeFrame is server's response to HelloFrame (new session)
+message WelcomeFrame {
+  string session_id = 1;
+  uint64 session_epoch = 2;
+  string resume_token = 3;
+  int64 server_time_ms = 4;
+  SessionPolicy policy = 5;
+}
+
+// SessionPolicy defines limits and intervals for this session
+message SessionPolicy {
+  int32 max_inflight_total = 1;
+  int32 max_inflight_command = 2;
+  int32 max_inflight_control = 3;
+  int32 max_inflight_telemetry = 4;
+  int32 max_batch_bytes = 5;
+  int32 heartbeat_interval_seconds = 6;
+}
+
+// DeliverFrame delivers one or more envelopes
+message DeliverFrame {
+  string batch_id = 1;
+  repeated Envelope envelopes = 2;
+}
+
+// SubscribeOkFrame confirms subscription with resolved mailbox IDs
+message SubscribeOkFrame {
+  repeated string mailbox_ids = 1;
+}
+
+// PongFrame is server's response to PingFrame
+message PongFrame {
+  int64 server_time_ms = 1;
+  int64 client_time_ms = 2;  // Echo back client's timestamp
+}
+
+// ErrorFrame indicates an error condition
+message ErrorFrame {
+  string code = 1;
+  string message = 2;
+  bool retryable = 3;
+  map<string, string> context = 4;
+}
+
+// ResumeOkFrame indicates successful session resumption
+message ResumeOkFrame {
+  string session_id = 1;
+  uint64 session_epoch = 2;
+  string resume_token = 3;  // New resume token
+  map<string, uint64> last_acked_seq = 4;  // mailbox_id → seq
+  SessionPolicy policy = 5;
+}
+
+// ResumeDeniedFrame indicates failed session resumption
+message ResumeDeniedFrame {
+  string reason = 1;
+}
+
+// ============================================================================
+// Core Domain Types
+// ============================================================================
+
+// Envelope is a single message unit
+message Envelope {
+  string envelope_id = 1;  // UUID or ULID
+  string mailbox_id = 2;
+  uint64 seq = 3;  // Monotonic per mailbox
+  QoS qos = 4;
+  string type = 5;  // e.g., "command.run", "deploy.apply", "config.delta"
+  int64 created_at_ms = 6;
+  int64 expires_at_ms = 7;  // Optional but recommended for commands
+  string trace_id = 8;
+  bytes payload = 9;  // JSON/protobuf/CBOR allowed
+  string dedupe_key = 10;  // For idempotency
+  int32 priority = 11;  // Within QoS
+  bool requires_ack = 12;  // Default true for COMMAND/CONTROL, false for TELEMETRY
+  string org_id = 13;  // Multi-tenancy
+}
+
+// QoS defines quality of service class
+enum QoS {
+  QOS_UNSPECIFIED = 0;
+  QOS_COMMAND = 1;      // At-least-once, durable, never drop unless expired
+  QOS_CONTROL = 2;      // At-least-once, durable, can be collapsed
+  QOS_TELEMETRY = 3;    // Best-effort, drop-first under backpressure
+}
+
+// Target identifies a routing destination
+message Target {
+  TargetType target_type = 1;
+  string target_id = 2;
+  string org_id = 3;
+  string deliver_role = 4;  // Optional: "LEADER" for cluster fanout
+}
+
+// TargetType defines mailbox target types
+enum TargetType {
+  TARGET_TYPE_UNSPECIFIED = 0;
+  TARGET_TYPE_SERVER = 1;
+  TARGET_TYPE_CLUSTER = 2;
+  TARGET_TYPE_ORG = 3;
+  TARGET_TYPE_SERVICE = 4;
+  TARGET_TYPE_BROADCAST = 5;
+}
+
+// ============================================================================
+// Publish API Types
+// ============================================================================
+
+message PublishRequest {
+  Envelope envelope = 1;
+  repeated Target targets = 2;
+}
+
+message PublishResponse {
+  bool success = 1;
+  string error = 2;
+  map<string, uint64> mailbox_seqs = 3;  // mailbox_id → assigned seq
+}

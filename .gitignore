@@ -1,0 +1,53 @@
+# Binaries and build output
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+spine
+
+# Test and coverage
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Configuration (exclude actual configs, keep examples)
+config.yaml
+*.local.yaml
+
+# Certificates and keys (exclude actual certs, keep examples if any)
+certs/*.key
+certs/*.crt
+certs/*.csr
+certs/*.pem
+certs/*.srl
+!certs/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# Generated proto code (optional: some projects commit this)
+# Uncomment if you prefer to commit generated code:
+# !proto/**/*.pb.go
+
+# Docker volumes
+mongodb_data/
+mongodb_config/
+
+# OS
+Thumbs.db
