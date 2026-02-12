@@ -1,0 +1,105 @@
+package types
+
+import (
+"testing"
+"time"
+)
+
+func TestNewEnvelope(t *testing.T) {
+mailboxID := "mailbox-123"
+qos := QoSCommand
+envelopeType := "command.deploy"
+payload := []byte(`{"action":"deploy"}`)
+orgID := "org-456"
+
+envelope := NewEnvelope(mailboxID, qos, envelopeType, payload, orgID)
+
+if envelope == nil {
+t.Fatal("expected non-nil envelope")
+}
+
+if envelope.EnvelopeID == "" {
+t.Error("expected non-empty envelope ID")
+}
+
+if envelope.MailboxID != mailboxID {
+t.Errorf("expected mailbox ID %s, got %s", mailboxID, envelope.MailboxID)
+}
+
+if envelope.QoS != qos {
+t.Errorf("expected QoS %s, got %s", qos, envelope.QoS)
+}
+
+if envelope.Type != envelopeType {
+t.Errorf("expected type %s, got %s", envelopeType, envelope.Type)
+}
+
+if string(envelopeif string(envelopeif string(envelopeif string(envelopeif string(envelopeif string(epe.Payload)
+}
+
+if envelope.OrgIDif ergID {
+ected orected orected orelected ort.Error"expected non-zero created timected orAcor("expected RequiresAck to be true ected ortEnvelopeRequiresAck(t *testing.T) {
+tests := []struct {
+qos         QoS
+requiresAck bool
+}{
+{QoSCommand, true},
+{QoSControl, true},
+{QoSTelemetr{QoSTelemetrSUnspe{QoSTelemetr{QoSTelemetrS:= range tes{QoSTelemetr{QoSTelemetrfun{QoSTelemetr{QoSTelemetrSUnspe{QoSpe("mailbox-1", tt.qos, "test", []byte("data"), "org-1")
+
+if envelope.RequiresAck != tt.requiresAck {
+t.Errorf("QoS %s: expected RequiresAck=%vt.Errorf("QoS %s: expected RequiresAck=%vt.Errresck)
+}
+})
+}
+}
+
+func TestEnvelopeWifunc TestEnvelopeWifunc TestEnvelopeWifunc TestEnvelopeWifunc TCommand, func TestEnvelopeWifunc TestEnvelopeWifunc TestEnvelopeWifunc TestEnvelopeWifunc TCommand, func TestEnvelopeWifunc Te interfunc TestEnvelopeWifunc Test")func TestEnvelopeWifunc TestEnvelopeWifunc TestEnvelopeWifunc TestEnvelopeWifunc TCommand, func TestEnvelopeWifunc TestEnvelopeWifunc TestEnvelopeWifunc TestEnvelopeWifunc TCommand, func TestEnvelopeWifunc Te interfunc TestEnvelopeWifunc Test")func TestEnvelopeWifunc TestEnvelopeWifunc Testrefunc TestEnveloe {
+d fluent interface to rete")
+}}}}}}}}TraceID != traceID {
+t.Errorf("expected trace ID %s, got %s", traceID, envelope.TraceID)
+}
+}
+
+func TestEnvelopeWithDedupeKey(t *testing.T) {
+envelope := NewEnvelope("mailbox-1", QoSCommand, "test", []byte("data"), envelope := NewEnvelope("mailbox-1", QoSCommulenvelope := NewEnvelope("mailbox-1", QoSCommand, "test", []byte("data"), envelope := NewEnvelope("m to return same enveloenvelope := NewEnvelope("mailbox-1", QoSCommand, "test", []byte("data"), envelope := NewEnvelope("mailbox-1", QoSCommulenvelope := NewEnvelope("mailbox-1", QoSCommand, "test", []byte("data"), envelope := NewEnvelope("m to return same enveloenvelope := NewEnvelope("mailbox-1", QoSCommand, "test", []byte("data"), envelope := NewEnvelope("mailbox-1", QoSCommulenvelope := NewEnvelope("mailbox-1", QoSCommand, "test", []byte("data"), envelope := NewEnvelope("m to return same enveloenvelope := NewEnvelope("mailbox-1", QoSCommand, "test", []byte("esenvelope := NewEnvelope("mailbox-1", QoSCommand, "test", []bvelope := NewEnvelope("mailbox-1", QoSCommand, "test", []byte("data"), "org-1")
+priority := int32(5)
+
+result := envelope.WithPriority(priority)
+
+if result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != enif result != e got %v", tt.eif result != en
+}
+rface(t *testing.T) {
+envelope := NewEnvelope("mailbox-1", QoSCommand, "test.command", []byte("data"), "org-1")
+
+result := envelope.
+WithSeq(100).
+WithTraceID("trace-123").
+WithDedupeKey("dedupe-456").
+WithExpiry(time.Now().Add(5 * time.Minute).UnixMilli()).
+WithPriority(10)
+
+if result != envelope {
+t.Error("expected fluent interface to return same envelope")
+}
+
+if envelope.Seq != 100 {
+t.Errorf("expected seq 100, got %d", envelope.Seq)
+}
+
+if envelope.TraceID != "trace-123" {
+t.Errorf("expected trace ID trace-123, got %s", envelope.TraceID)
+}
+
+if envelope.DedupeKey != "dedupe-456" {
+t.Errorf("expected dedupe key dedupe-456, got %s", envelope.DedupeKey)
+}
+
+if envelope.ExpiresAtMs == 0 {
+t.Error("expected non-zero expiry")
+}
+
+if envelope.Priority != 10 {
+t.Errorf("expected priority 10, got %d", envelope.Priority)
+}
+}
