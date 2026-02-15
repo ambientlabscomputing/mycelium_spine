@@ -7,6 +7,9 @@ log_to_file: false
 grpc:
   port: 9090
   tls:
+    cert_path: ""
+    key_path: ""
+    ca_path: ""
     client_auth: "none"
 
 mongo:

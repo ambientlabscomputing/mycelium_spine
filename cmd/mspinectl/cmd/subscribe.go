@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ambientlabscomputing/mycelium_spine/sdk"
 	umsv1 "github.com/ambientlabscomputing/mycelium_spine/proto/ums/v1"
+	"github.com/ambientlabscomputing/mycelium_spine/sdk"
 	"github.com/spf13/cobra"
 )
 
