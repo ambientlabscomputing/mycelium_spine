@@ -5,21 +5,24 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/metrics"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
 )
 
 // ackServiceImpl implements AckService
 type ackServiceImpl struct {
-	repo   repository.Repository
-	logger *slog.Logger
+	repo    repository.Repository
+	metrics *metrics.Metrics
+	logger  *slog.Logger
 }
 
 // NewAckService creates a new ack service
-func NewAckService(repo repository.Repository) AckService {
+func NewAckService(repo repository.Repository, m *metrics.Metrics) AckService {
 	return &ackServiceImpl{
-		repo:   repo,
-		logger: utils.Logger.With("service", "ack"),
+		repo:    repo,
+		metrics: m,
+		logger:  utils.Logger.With("service", "ack"),
 	}
 }
 
@@ -34,31 +37,25 @@ func (s *ackServiceImpl) HandleCumulativeAck(ctx context.Context, sessionID stri
 		return fmt.Errorf("failed to update ack position: %w", err)
 	}
 
+	// TODO: Update AckLag metric when repository provides last acked sequence
+	// For now, metrics are updated from delivery service when envelopes are delivered
+
 	logger.Debug("cumulative ACK processed successfully")
 	return nil
 }
 
-// HandleSelectiveAck processes a selective ACK (specific seqs)
+// HandleSelectiveAck processes a selective ACK (specific seqs out-of-order)
 func (s *ackServiceImpl) HandleSelectiveAck(ctx context.Context, sessionID string, mailboxID string, seqs []uint64) error {
 	logger := s.logger.With("session_id", sessionID, "mailbox_id", mailboxID, "seq_count", len(seqs))
 	logger.Debug("processing selective ACK")
 
-	// For selective ACK, we need to track individual seqs
-	// For V1, we'll convert to cumulative ACK by taking max(seqs)
-	var maxSeq uint64
-	for _, seq := range seqs {
-		if seq > maxSeq {
-			maxSeq = seq
-		}
-	}
+	// FIXME: Selective ACK requires per-seq gap tracking, not cumulative.
+	// Taking max(seqs) silently marks unprocessed gaps as acked, causing data loss.
+	// For now, return error to reject selective ACKs until proper tracking is implemented.
+	// TODO: Implement bitset-based selective ACK tracking in repository
 
-	if err := s.repo.UpdateAckPosition(ctx, sessionID, mailboxID, maxSeq); err != nil {
-		logger.Error("failed to update ack position", "error", err)
-		return fmt.Errorf("failed to update ack position: %w", err)
-	}
-
-	logger.Debug("selective ACK processed successfully", "max_seq", maxSeq)
-	return nil
+	logger.Warn("selective ACK not yet fully supported; use cumulative ACK instead")
+	return fmt.Errorf("selective ACK requires gap tracking; not yet implemented in V1. use cumulative ACK")
 }
 
 // HandleNack processes a NACK (client rejects an envelope)

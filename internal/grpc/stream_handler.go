@@ -6,10 +6,12 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/auth"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/service"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/types"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
 	umsv1 "github.com/ambientlabscomputing/mycelium_spine/proto/ums/v1"
+	"google.golang.org/grpc/peer"
 )
 
 // StreamHandler implements SpineStreamServer
@@ -30,9 +32,25 @@ func NewStreamHandler(appService service.Service) *StreamHandler {
 // Connect implements the bidirectional streaming RPC
 func (h *StreamHandler) Connect(stream umsv1.SpineStream_ConnectServer) error {
 	ctx := stream.Context()
-	logger := h.logger.With("remote_addr", "todo") // TODO: extract from context
+
+	// Extract remote address from peer
+	remoteAddr := "unknown"
+	if p, ok := peer.FromContext(ctx); ok {
+		remoteAddr = p.Addr.String()
+	}
+
+	logger := h.logger.With("remote_addr", remoteAddr)
 
 	logger.Info("new connection established")
+
+	// Extract client identity from mTLS
+	identity, err := auth.ExtractClientIdentity(ctx, false)
+	if err != nil {
+		logger.Warn("failed to extract client identity", "error", err)
+	}
+	if identity != nil {
+		auth.LogClientIdentity(logger, identity)
+	}
 
 	// Wait for HELLO frame (must be first)
 	firstFrame, err := stream.Recv()
@@ -46,6 +64,13 @@ func (h *StreamHandler) Connect(stream umsv1.SpineStream_ConnectServer) error {
 		logger.Error("first frame was not HELLO")
 		h.sendError(stream, "PROTOCOL_ERROR", "first frame must be HELLO", false)
 		return fmt.Errorf("first frame must be HELLO")
+	}
+
+	// PHASE 1: Validate that requested server_id matches client mTLS identity
+	if identity != nil && helloFrame.ServerId != "" && identity.ClientID != helloFrame.ServerId {
+		logger.Warn("server_id mismatch with mTLS identity", "mtls_cn", identity.ClientID, "requested_server_id", helloFrame.ServerId)
+		h.sendError(stream, "AUTHENTICATION_ERROR", fmt.Sprintf("server_id %s does not match mTLS client CN %s", helloFrame.ServerId, identity.ClientID), false)
+		return fmt.Errorf("server_id mismatch with mTLS identity")
 	}
 
 	// Process HELLO and create/resume session

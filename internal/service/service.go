@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"time"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/metrics"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/types"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
@@ -38,6 +40,7 @@ type DeliveryService interface {
 	StopDeliveryLoop(ctx context.Context, sessionID string) error
 	DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) error
 	HandleBackpressure(ctx context.Context, session *types.Session, hint *umsv1.FlowHintFrame) error
+	NotifyDeliveryLoops() // Signal all delivery loops that new envelopes are available
 }
 
 // PublishService handles envelope publishing from external services
@@ -69,6 +72,8 @@ type AppService struct {
 	repo             repository.Repository
 	poolManager      *workers.PoolManager
 	settings         *utils.Settings
+	metrics          *metrics.Metrics
+	metricsServer    *metrics.Server
 	sessionService   SessionService
 	deliveryService  DeliveryService
 	publishService   PublishService
@@ -82,32 +87,42 @@ func NewAppService(repo repository.Repository, poolManager *workers.PoolManager,
 		repo:        repo,
 		poolManager: poolManager,
 		settings:    settings,
+		metrics:     metrics.NewMetrics(),
 	}
 
 	// Initialize sub-services
-	svc.sessionService = NewSessionService(repo, settings, svc)
-	svc.deliveryService = NewDeliveryService(repo, poolManager, settings)
-	svc.publishService = NewPublishService(repo, svc.deliveryService)
-	svc.ackService = NewAckService(repo)
-	svc.subscribeService = NewSubscribeService(repo, svc.deliveryService)
+	svc.sessionService = NewSessionService(repo, settings, svc, svc.metrics)
+	svc.deliveryService = NewDeliveryService(repo, poolManager, settings, svc.metrics)
+	svc.publishService = NewPublishService(repo, svc.deliveryService, svc.metrics)
+	svc.ackService = NewAckService(repo, svc.metrics)
+	svc.subscribeService = NewSubscribeService(repo, svc.deliveryService, svc.metrics)
 
 	return svc
 }
 
-// Start starts the application service
+// Start starts the application service and embedded servers
 func (s *AppService) Start(ctx context.Context) error {
 	// Start worker pools
 	s.poolManager.Start(ctx)
+
+	// Start metrics server if enabled\n\tif s.settings.Metrics.Enabled > 0 {\n\t\tmetricsServer := metrics.NewMetricsServer(int(s.settings.Metrics.Port), utils.Logger)\n\t\tif err := metricsServer.Start(); err != nil {\n\t\t\treturn err\n\t\t}\n\t\ts.metricsServer = metricsServer\n\t}
 
 	// TODO: Start background tasks (heartbeat checker, retention janitor)
 
 	return nil
 }
 
-// Stop stops the application service
+// Stop stops the application service and embedded servers
 func (s *AppService) Stop(ctx context.Context) error {
 	// Stop worker pools
 	s.poolManager.Stop()
+
+	// Stop metrics server if running
+	if s.metricsServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		s.metricsServer.Stop(ctx)
+		cancel()
+	}
 
 	return nil
 }

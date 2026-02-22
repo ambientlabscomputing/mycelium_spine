@@ -75,6 +75,12 @@ type Settings struct {
 		TaskQueueSize    int `yaml:"task_queue_size"` // Per-pool channel buffer
 	} `yaml:"workers"`
 
+	// Prometheus metrics configuration
+	Metrics struct {
+		Enabled int `yaml:"enabled"` // 1 to enable, 0 to disable
+		Port    int `yaml:"port"`    // HTTP port for /metrics endpoint
+	} `yaml:"metrics"`
+
 	// OAuth 2.0 authentication (for validating JWT tokens from clients)
 	Auth struct {
 		AuthDomain   string `yaml:"auth_domain"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/auth"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/service"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/types"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
@@ -30,7 +31,21 @@ func (h *PublishHandler) Publish(ctx context.Context, req *umsv1.PublishRequest)
 	logger := h.logger.With("envelope_id", req.Envelope.EnvelopeId)
 	logger.Info("received PublishRequest", "target_count", len(req.Targets))
 
-	// TODO: Validate authentication (mTLS or JWT from server_api/UCRS)
+	// PHASE 1: Validate authentication via mTLS
+	// Extract client identity from mTLS peer
+	identity, err := auth.ExtractClientIdentity(ctx, false) // Don't strictly require (graceful fallback)
+	if err != nil {
+		logger.Warn("failed to extract client identity", "error", err)
+	}
+
+	if identity != nil {
+		auth.LogClientIdentity(logger, identity)
+		// TODO: Validate that the client is an authorized publisher (server_api, UCRS, etc.)
+		// For now, log the identity but allow the publish to proceed
+		logger.Debug("publish request authenticated", "client_id", identity.ClientID)
+	} else {
+		logger.Warn("publish request without client identity; mTLS may not be configured")
+	}
 
 	// Convert proto envelope to internal type
 	envelope := protoToEnvelope(req.Envelope)

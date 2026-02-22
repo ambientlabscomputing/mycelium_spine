@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/metrics"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/types"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
@@ -17,16 +18,18 @@ type sessionServiceImpl struct {
 	repo     repository.Repository
 	settings *utils.Settings
 	appSvc   *AppService
+	metrics  *metrics.Metrics
 	sessions sync.Map // serverID → *types.Session (in-memory registry)
 	logger   *slog.Logger
 }
 
 // NewSessionService creates a new session service
-func NewSessionService(repo repository.Repository, settings *utils.Settings, appSvc *AppService) SessionService {
+func NewSessionService(repo repository.Repository, settings *utils.Settings, appSvc *AppService, m *metrics.Metrics) SessionService {
 	return &sessionServiceImpl{
 		repo:     repo,
 		settings: settings,
 		appSvc:   appSvc,
+		metrics:  m,
 		logger:   utils.Logger.With("service", "session"),
 	}
 }
@@ -77,6 +80,9 @@ func (s *sessionServiceImpl) HandleHello(ctx context.Context, hello *umsv1.Hello
 	// Register in memory
 	s.sessions.Store(hello.ServerId, session)
 
+	// Record metric: new session created
+	s.metrics.SessionsActive.Inc()
+
 	// Build WelcomeFrame
 	welcome := &umsv1.WelcomeFrame{
 		SessionId:    session.SessionID,
@@ -99,13 +105,58 @@ func (s *sessionServiceImpl) HandleHello(ctx context.Context, hello *umsv1.Hello
 
 // HandleResume processes a session resumption request
 func (s *sessionServiceImpl) HandleResume(ctx context.Context, resumeToken string) (*umsv1.ResumeOkFrame, *types.Session, error) {
-	s.logger.Info("processing session resume", "resume_token", resumeToken)
+	logger := s.logger.With("resume_token", resumeToken)
+	logger.Info("processing session resume")
 
-	// Find session by resume token (query MongoDB)
-	// TODO: implement FindSessionByResumeToken in repository
-	// For now, return ResumeDenied
+	// Find session by resume token
+	session, err := s.repo.GetSessionByResumeToken(ctx, resumeToken)
+	if err != nil {
+		logger.Warn("session resume failed", "error", err)
+		return nil, nil, fmt.Errorf("session resume failed: invalid or expired resume token")
+	}
 
-	return nil, nil, fmt.Errorf("session resume not yet implemented")
+	if session == nil {
+		logger.Warn("session not found for resume token")
+		return nil, nil, fmt.Errorf("session not found")
+	}
+
+	logger = logger.With("session_id", session.SessionID, "server_id", session.ServerID)
+
+	// Advance session epoch for this resume
+	oldEpoch := session.SessionEpoch
+	session.SessionEpoch++
+	logger.Info("session resumed", "old_epoch", oldEpoch, "new_epoch", session.SessionEpoch)
+
+	// Generate new resume token
+	session.RotateResumeToken()
+
+	// Record metric: successful reconnection
+	s.metrics.ReconnectsTotal.Inc()
+
+	// Persist the updated session
+	if err := s.repo.UpdateResumeToken(ctx, session.SessionID, session.ResumeToken); err != nil {
+		logger.Error("failed to rotate resume token", "error", err)
+		return nil, nil, fmt.Errorf("failed to update session: %w", err)
+	}
+
+	// Fetch ack positions for replay
+	ackPositions, err := s.repo.GetAckPositions(ctx, session.SessionID)
+	if err != nil {
+		logger.Error("failed to get ack positions", "error", err)
+		return nil, nil, fmt.Errorf("failed to get ack positions: %w", err)
+	}
+
+	// Build ResumeOkFrame
+	resumeOk := &umsv1.ResumeOkFrame{
+		SessionId:    session.SessionID,
+		SessionEpoch: session.SessionEpoch,
+		ResumeToken:  session.ResumeToken,
+		LastAckedSeq: ackPositions,
+		Policy:       nil, // TODO: Fetch SessionPolicy from config or database
+	}
+
+	logger.Info("session resume successful", "ack_positions_count", len(ackPositions))
+	return resumeOk, session, nil
 }
 
 // HandleHeartbeat updates the last heartbeat timestamp
@@ -123,13 +174,19 @@ func (s *sessionServiceImpl) EvictStale(ctx context.Context) error {
 // GetSession retrieves a session by ID (from in-memory or DB)
 func (s *sessionServiceImpl) GetSession(ctx context.Context, sessionID string) (*types.Session, error) {
 	// Check in-memory first
+	var found *types.Session
 	s.sessions.Range(func(key, value interface{}) bool {
 		session := value.(*types.Session)
 		if session.SessionID == sessionID {
-			return false // found
+			found = session
+			return false // stop iteration
 		}
-		return true
+		return true // continue iteration
 	})
+
+	if found != nil {
+		return found, nil
+	}
 
 	// Fallback to DB
 	return s.repo.GetSession(ctx, sessionID)
@@ -148,6 +205,8 @@ func (s *sessionServiceImpl) UnregisterSession(ctx context.Context, sessionID st
 		session := value.(*types.Session)
 		if session.SessionID == sessionID {
 			s.sessions.Delete(key)
+			// Record metric: session ended
+			s.metrics.SessionsActive.Dec()
 			return false
 		}
 		return true

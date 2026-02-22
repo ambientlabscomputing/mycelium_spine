@@ -45,6 +45,9 @@ type SessionRepository interface {
 	// GetSessionByServerID retrieves the active session for a server_id
 	GetSessionByServerID(ctx context.Context, serverID string) (*types.Session, error)
 
+	// GetSessionByResumeToken retrieves a session by its resume token (for session resumption)
+	GetSessionByResumeToken(ctx context.Context, resumeToken string) (*types.Session, error)
+
 	// UpdateResumeToken rotates the resume token for a session
 	UpdateResumeToken(ctx context.Context, sessionID string, newToken string) error
 
@@ -59,6 +62,9 @@ type SessionRepository interface {
 
 	// UpdateHeartbeat updates the session's last heartbeat timestamp
 	UpdateHeartbeat(ctx context.Context, sessionID string) error
+
+	// UpdateSubscriptions persists the session's subscription list to MongoDB
+	UpdateSubscriptions(ctx context.Context, sessionID string, mailboxIDs []string) error
 }
 
 // TargetResolver resolves targets to mailbox IDs

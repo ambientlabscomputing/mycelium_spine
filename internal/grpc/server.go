@@ -58,8 +58,14 @@ func NewServer(appService service.Service, settings *utils.Settings) (*Server, e
 	umsv1.RegisterSpineStreamServer(grpcServer, streamHandler)
 	umsv1.RegisterSpinePublishServer(grpcServer, publishHandler)
 
-	// Enable reflection for debugging (grpcurl, etc.)
-	reflection.Register(grpcServer)
+	// Enable reflection only in debug mode (grpcurl, development)
+	// SECURITY: Reflection exposes the full gRPC API surface; disable in production
+	if settings.LogLevel == "debug" {
+		logger.Info("gRPC reflection enabled (debug mode)")
+		reflection.Register(grpcServer)
+	} else {
+		logger.Info("gRPC reflection disabled (production mode)")
+	}
 
 	return &Server{
 		appService:     appService,

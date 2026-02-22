@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/metrics"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/types"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
@@ -15,14 +16,16 @@ import (
 type subscribeServiceImpl struct {
 	repo            repository.Repository
 	deliveryService DeliveryService
+	metrics         *metrics.Metrics
 	logger          *slog.Logger
 }
 
 // NewSubscribeService creates a new subscribe service
-func NewSubscribeService(repo repository.Repository, deliveryService DeliveryService) SubscribeService {
+func NewSubscribeService(repo repository.Repository, deliveryService DeliveryService, m *metrics.Metrics) SubscribeService {
 	return &subscribeServiceImpl{
 		repo:            repo,
 		deliveryService: deliveryService,
+		metrics:         m,
 		logger:          utils.Logger.With("service", "subscribe"),
 	}
 }
@@ -48,7 +51,11 @@ func (s *subscribeServiceImpl) HandleSubscribe(ctx context.Context, session *typ
 		}
 	}
 
-	// TODO: Persist subscription changes to MongoDB
+	// PHASE 2: Persist subscription changes to MongoDB
+	if err := s.repo.UpdateSubscriptions(ctx, session.SessionID, session.Subscriptions); err != nil {
+		logger.Error("failed to persist subscriptions", "error", err)
+		return nil, fmt.Errorf("failed to persist subscriptions: %w", err)
+	}
 
 	// Start delivery loop for newly subscribed mailboxes
 	// For V1, we'll rely on a single delivery loop per session that checks all subscriptions

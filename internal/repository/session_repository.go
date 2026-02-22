@@ -69,6 +69,27 @@ func (r *MongoSessionRepository) GetSessionByServerID(ctx context.Context, serve
 	return &session, nil
 }
 
+// GetSessionByResumeToken retrieves a session using its resume token
+func (r *MongoSessionRepository) GetSessionByResumeToken(ctx context.Context, resumeToken string) (*types.Session, error) {
+	var session types.Session
+	err := r.sessions.FindOne(ctx, bson.M{"resume_token": resumeToken}).Decode(&session)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("no session found for resume token")
+		}
+		return nil, fmt.Errorf("failed to get session by resume token: %w", err)
+	}
+
+	// Initialize runtime state
+	session.InflightByQoS = map[types.QoS]int{
+		types.QoSCommand:   0,
+		types.QoSControl:   0,
+		types.QoSTelemetry: 0,
+	}
+
+	return &session, nil
+}
+
 // UpdateResumeToken rotates the resume token for a session
 func (r *MongoSessionRepository) UpdateResumeToken(ctx context.Context, sessionID string, newToken string) error {
 	filter := bson.M{"session_id": sessionID}
@@ -158,6 +179,28 @@ func (r *MongoSessionRepository) UpdateHeartbeat(ctx context.Context, sessionID 
 	result, err := r.sessions.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update heartbeat: %w", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("session not found: %s", sessionID)
+	}
+
+	return nil
+}
+
+// UpdateSubscriptions persists the session's subscription list to MongoDB
+func (r *MongoSessionRepository) UpdateSubscriptions(ctx context.Context, sessionID string, mailboxIDs []string) error {
+	filter := bson.M{"session_id": sessionID}
+	update := bson.M{
+		"$set": bson.M{
+			"subscriptions": mailboxIDs,
+			"updated_at":    time.Now().Format(time.RFC3339),
+		},
+	}
+
+	result, err := r.sessions.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update subscriptions: %w", err)
 	}
 
 	if result.MatchedCount == 0 {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/metrics"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/types"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
@@ -14,14 +15,16 @@ import (
 type publishServiceImpl struct {
 	repo            repository.Repository
 	deliveryService DeliveryService
+	metrics         *metrics.Metrics
 	logger          *slog.Logger
 }
 
 // NewPublishService creates a new publish service
-func NewPublishService(repo repository.Repository, deliveryService DeliveryService) PublishService {
+func NewPublishService(repo repository.Repository, deliveryService DeliveryService, m *metrics.Metrics) PublishService {
 	return &publishServiceImpl{
 		repo:            repo,
 		deliveryService: deliveryService,
+		metrics:         m,
 		logger:          utils.Logger.With("service", "publish"),
 	}
 }
@@ -59,10 +62,13 @@ func (s *publishServiceImpl) Publish(ctx context.Context, envelope *types.Envelo
 
 		mailboxSeqs[mailboxID] = seq
 		logger.Debug("envelope appended", "mailbox_id", mailboxID, "seq", seq)
+
+		// TODO: Update MailboxBacklog metric when repository provides sequential state
+		// Backlog tracking requires both NextSeq and LastAckedSeq from repository
 	}
 
-	// TODO: Trigger immediate delivery for active sessions subscribed to these mailboxes
-	// For now, delivery loops will pick it up on next poll
+	// PHASE 2: Trigger immediate delivery for active sessions subscribed to these mailboxes
+	s.deliveryService.NotifyDeliveryLoops()
 
 	logger.Info("envelope published successfully", "mailboxes_written", len(mailboxSeqs))
 	return &PublishResult{

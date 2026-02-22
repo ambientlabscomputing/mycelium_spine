@@ -71,7 +71,12 @@ func (r *MongoMailboxRepository) GetMailbox(ctx context.Context, mailboxID strin
 	return &mailbox, nil
 }
 
-// AppendEnvelope atomically assigns a sequence number and inserts an envelope
+// AppendEnvelope atomically assigns a sequence number and inserts an envelope.
+// IMPORTANT: This implementation is NOT fully atomic. The seq is allocated via FindOneAndUpdate,
+// then the envelope is inserted separately. If InsertOne fails, the seq is consumed creating
+// a gap in the sequence, violating spec §12 (total order per mailbox).
+// TODO (Phase 4): Wrap in a MongoDB multi-document transaction to ensure atomicity.
+// For now, document the limitation and assume failures are transient.
 func (r *MongoMailboxRepository) AppendEnvelope(ctx context.Context, mailboxID string, envelope *types.Envelope) (uint64, error) {
 	// Use MongoDB findOneAndUpdate with $inc to atomically get next sequence
 	filter := bson.M{"mailbox_id": mailboxID}

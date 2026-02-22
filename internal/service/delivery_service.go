@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/metrics"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/types"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
@@ -18,16 +20,19 @@ type deliveryServiceImpl struct {
 	repo          repository.Repository
 	poolManager   *workers.PoolManager
 	settings      *utils.Settings
+	metrics       *metrics.Metrics
 	deliveryLoops sync.Map // sessionID → context.CancelFunc
+	deliveryChans sync.Map // sessionID → chan struct{} (notification channels)
 	logger        *slog.Logger
 }
 
 // NewDeliveryService creates a new delivery service
-func NewDeliveryService(repo repository.Repository, poolManager *workers.PoolManager, settings *utils.Settings) DeliveryService {
+func NewDeliveryService(repo repository.Repository, poolManager *workers.PoolManager, settings *utils.Settings, m *metrics.Metrics) DeliveryService {
 	return &deliveryServiceImpl{
 		repo:        repo,
 		poolManager: poolManager,
 		settings:    settings,
+		metrics:     m,
 		logger:      utils.Logger.With("service", "delivery"),
 	}
 }
@@ -41,8 +46,12 @@ func (s *deliveryServiceImpl) StartDeliveryLoop(ctx context.Context, session *ty
 	loopCtx, cancel := context.WithCancel(ctx)
 	s.deliveryLoops.Store(session.SessionID, cancel)
 
+	// Create notification channel for this session (PHASE 2: Immediate delivery)
+	deliveryChan := make(chan struct{}, 100) // Buffered to avoid blocking
+	s.deliveryChans.Store(session.SessionID, deliveryChan)
+
 	// Start delivery loop in background
-	go s.deliveryLoop(loopCtx, session)
+	go s.deliveryLoop(loopCtx, session, deliveryChan)
 
 	return nil
 }
@@ -57,11 +66,16 @@ func (s *deliveryServiceImpl) StopDeliveryLoop(ctx context.Context, sessionID st
 		cancelFunc()
 	}
 
+	// Close the notification channel
+	if deliveryChan, ok := s.deliveryChans.LoadAndDelete(sessionID); ok {
+		close(deliveryChan.(chan struct{}))
+	}
+
 	return nil
 }
 
 // deliveryLoop is the background goroutine that polls mailboxes and pushes envelopes
-func (s *deliveryServiceImpl) deliveryLoop(ctx context.Context, session *types.Session) {
+func (s *deliveryServiceImpl) deliveryLoop(ctx context.Context, session *types.Session, deliveryChan chan struct{}) {
 	logger := s.logger.With("session_id", session.SessionID)
 	logger.Info("delivery loop started")
 
@@ -69,22 +83,29 @@ func (s *deliveryServiceImpl) deliveryLoop(ctx context.Context, session *types.S
 		logger.Info("delivery loop stopped")
 	}()
 
-	// For V1, use a simple polling approach
-	// TODO: Replace with notification channel pattern (wait for signals from Publish)
+	// PHASE 2: Use notification channel pattern for immediate delivery
+	// Wait for either: context cancellation, notification signal, or periodic timeout
+	pollTicker := time.NewTicker(500 * time.Millisecond) // Fallback polling in case signal is missed
+	defer pollTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Debug("delivery loop context cancelled")
 			return
 
-		default:
-			// Poll each subscribed mailbox
-			for _, mailboxID := range session.Subscriptions {
-				s.deliverFromMailbox(ctx, session, mailboxID)
-			}
+		case <-deliveryChan:
+			// Notification: new envelope published or acknowledgment received
+			logger.Debug("delivery notification received")
+			// Fall through to poll immediately
 
-			// Sleep to avoid tight loop (TODO: use notification channel instead)
-			// time.Sleep(100 * time.Millisecond)
+		case <-pollTicker.C:
+			// Periodic poll as fallback
+		}
+
+		// Poll each subscribed mailbox
+		for _, mailboxID := range session.Subscriptions {
+			s.deliverFromMailbox(ctx, session, mailboxID)
 		}
 	}
 }
@@ -188,8 +209,23 @@ func (s *deliveryServiceImpl) DeliverToSession(ctx context.Context, session *typ
 			}
 			protoEnvelopes = append(protoEnvelopes, protoEnv)
 
-			// Increment inflight counter
+			// Increment inflight counter by QoS
 			session.IncrementInflight(env.QoS)
+
+			// Record delivery latency: time from creation to delivery
+			deliveryLatencyMs := time.Now().UnixMilli() - env.CreatedAtMs
+			deliveryLatencySec := float64(deliveryLatencyMs) / 1000.0
+			s.metrics.DeliveryLatency.Observe(deliveryLatencySec)
+
+			// Update inflight metrics
+			switch env.QoS {
+			case types.QoSCommand:
+				s.metrics.InflightCommand.Set(float64(session.GetInflight(types.QoSCommand)))
+			case types.QoSControl:
+				s.metrics.InflightControl.Set(float64(session.GetInflight(types.QoSControl)))
+			case types.QoSTelemetry:
+				s.metrics.InflightTelemetry.Set(float64(session.GetInflight(types.QoSTelemetry)))
+			}
 		}
 	}
 
@@ -223,6 +259,22 @@ func (s *deliveryServiceImpl) HandleBackpressure(ctx context.Context, session *t
 	// - "pause_control": skip CONTROL delivery temporarily
 
 	return nil
+}
+
+// NotifyDeliveryLoops signals all active delivery loops that new envelopes are available
+// This is called after publishing so subscribed sessions start delivery immediately
+// instead of waiting for the next poll timeout.
+func (s *deliveryServiceImpl) NotifyDeliveryLoops() {
+	s.deliveryChans.Range(func(key, value interface{}) bool {
+		deliveryChan := value.(chan struct{})
+		select {
+		case deliveryChan <- struct{}{}:
+			// Signal sent
+		default:
+			// Channel buffer full, skip (loop will poll on timeout anyway)
+		}
+		return true
+	})
 }
 
 // qosToProto converts types.QoS to proto QoS

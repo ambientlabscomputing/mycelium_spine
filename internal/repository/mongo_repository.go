@@ -93,11 +93,14 @@ func (r *MongoRepository) CreateIndexes(ctx context.Context) error {
 		{
 			Keys: bson.D{{Key: "org_id", Value: 1}},
 		},
-		{
-			Keys: bson.D{{Key: "expires_at_ms", Value: 1}},
-			Options: options.Index().SetExpireAfterSeconds(0).
-				SetPartialFilterExpression(bson.D{{Key: "expires_at_ms", Value: bson.D{{Key: "$gt", Value: 0}}}}),
-		},
+		// NOTE: TTL index disabled - expires_at_ms is int64 but MongoDB TTL indexes require Date type.
+		// Retention is enforced by background janitor goroutine (see service.go Start/EvictExpired)
+		// TODO: Convert expires_at_ms to time.Time or implement proper TTL index
+		// {
+		// 	Keys: bson.D{{Key: "expires_at_ms", Value: 1}},
+		// 	Options: options.Index().SetExpireAfterSeconds(0).
+		// 		SetPartialFilterExpression(bson.D{{Key: "expires_at_ms", Value: bson.D{{Key: "$gt", Value: 0}}}}),
+		// },
 	}
 
 	envelopesCollection := r.db.Collection("envelopes")

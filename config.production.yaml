@@ -1,0 +1,84 @@
+# Underleaf Mycelium Spine (UMS) Configuration - Production
+# UMS is the cloud↔edge control fabric protocol that replaces Event Bus v4
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+log_level: "${LOG_LEVEL:info}"         # Options: debug, info, warn, error
+log_format: "json"                     # Options: json, text (use json for prod)
+log_to_stderr: true                    # Enable stderr logging
+log_to_file: false                     # Disable file logging (use container logging)
+
+# =============================================================================
+# gRPC Server Configuration
+# =============================================================================
+grpc:
+  port: 9090  # gRPC server port
+
+  # TLS/mTLS configuration - REQUIRED in production
+  tls:
+    cert_path: "${TLS_CERT_PATH}"      # Server certificate path (from environment)
+    key_path: "${TLS_KEY_PATH}"        # Server private key path (from environment)
+    ca_path: "${TLS_CA_PATH}"          # CA certificate for client verification
+    client_auth: "require"             # MUST be "require" for production (or "require_and_verify")
+
+# =============================================================================
+# MongoDB Configuration
+# =============================================================================
+mongo:
+  uri: "${MONGODB_URI}"                # MongoDB connection URI from environment
+  # Do NOT embed credentials in URI - use environment variables
+  # Example: mongodb://username:password@host:port/database?authSource=admin
+  database: "${MONGODB_DATABASE:mycelium_spine_prod}"    # Database name
+  # username and password from URI or environment, not config file
+  # SENSITIVE: These fields should come from environment, never hardcoded
+  user: "${MONGODB_USERNAME}"
+  password: "${MONGODB_PASSWORD}"
+
+# =============================================================================
+# Mailbox Configuration
+# =============================================================================
+mailbox:
+  default_retention_seconds: 604800    # 7 days (production default)
+  max_bytes_per_mailbox: 1073741824    # 1GB (max storage per mailbox)
+
+# =============================================================================
+# Security Settings
+# =============================================================================
+auth:
+  # Authorized services that may publish to UMS (mTLS OU field must match)
+  authorized_publishers:
+    - "server_api"
+    - "ucrs"
+    - "event_bus_adapter"
+  
+  # Require mTLS on all connections
+  require_mtls: true
+
+# =============================================================================
+# Session Configuration
+# =============================================================================
+session:
+  heartbeat_timeout_seconds: 30        # Timeout for stale session eviction
+  resume_token_rotation_interval_seconds: 300  # Rotate tokens every 5 minutes
+
+# =============================================================================
+# Daemon/Background Tasks
+# =============================================================================
+daemon:
+  retention_janitor_interval_seconds: 3600   # Run retention cleanup every hour
+  stale_session_eviction_interval_seconds: 60  # Check for stale sessions every minute
+  metrics_collection_interval_seconds: 10    # Collect metrics every 10 seconds
+
+# How to use this config:
+# 1. Set environment variables for sensitive data:
+#    export TLS_CERT_PATH=/etc/ums/tls/cert.crt
+#    export TLS_KEY_PATH=/etc/ums/tls/key.key
+#    export TLS_CA_PATH=/etc/ums/tls/ca.crt
+#    export MONGODB_URI="mongodb://username:password@mongodb:27017/mycelium_spine_prod?authSource=admin"
+#    export MONGODB_USERNAME=spine_user
+#    export MONGODB_PASSWORD=<generated secure password>
+#    export LOG_LEVEL=info
+#
+# 2. Mount this config and TLS certificates as volumes in Docker/Kubernetes
+# 3. Never commit secrets to version control
