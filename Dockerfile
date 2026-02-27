@@ -50,9 +50,9 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /build/spine .
 
-# Copy config example (actual config should be mounted)
-COPY --from=builder /build/config.yaml .
-COPY --from=builder /build/config.yaml.example .
+# Copy config examples (actual config should be mounted at runtime)
+COPY --from=builder /build/config.yaml.example ./config.yaml.example
+COPY --from=builder /build/config.yaml.example ./config.yaml
 COPY --from=builder /build/config.e2e.yaml .
 
 # Create directories for certs and logs
