@@ -40,6 +40,14 @@ type Settings struct {
 		Database string       `yaml:"database"`
 		User     string       `yaml:"user"`
 		Password SecretString `yaml:"password"`
+		// AuthSource is the MongoDB database used to authenticate, e.g. "admin".
+		// Equivalent to the ?authSource=<db> URI query param. Only used when
+		// User/Password are set via config (not embedded in the URI).
+		AuthSource string `yaml:"auth_source"`
+		// AuthMechanism overrides the default negotiated mechanism, e.g.
+		// "SCRAM-SHA-256", "SCRAM-SHA-1", "MONGODB-X509". Leave empty to let
+		// the driver negotiate automatically.
+		AuthMechanism string `yaml:"auth_mechanism"`
 	} `yaml:"mongo"`
 
 	// Mailbox configuration

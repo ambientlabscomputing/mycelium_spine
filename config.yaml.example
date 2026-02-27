@@ -27,10 +27,23 @@ grpc:
 # MongoDB Configuration
 # =============================================================================
 mongo:
-  uri: "mongodb://localhost:27017"   # MongoDB connection URI
   database: "mycelium_spine"         # Database name
-  user: "spine_user"                 # MongoDB username (optional)
-  password: "****"                   # MongoDB password (optional, use SecretString)
+  user: "spine_user"                 # MongoDB username
+  password: "****"                   # MongoDB password (use SecretString, never put raw creds in the URI)
+
+  # --- Auth pattern 1: templated URI (preferred) ---
+  # Use <username> and <password> placeholders; they are substituted at startup
+  # with URL-encoded values from the user/password fields above.
+  # authSource, replicaSet, and all other query params are preserved as-is.
+  uri: "mongodb://<username>:<password>@host.docker.internal:27017/mycelium_spine?authSource=admin"
+  # auth_source and auth_mechanism are not needed when using a templated URI —
+  # put authSource/authMechanism in the URI query string instead.
+
+  # --- Auth pattern 2: plain URI + config credentials ---
+  # Leave the URI without placeholders and configure auth_source/auth_mechanism here.
+  # uri: "mongodb://localhost:27017"
+  # auth_source: "admin"             # Equivalent to ?authSource=admin in the URI
+  # auth_mechanism: ""               # e.g. "SCRAM-SHA-256"; empty = auto-negotiate
 
 # =============================================================================
 # Mailbox Configuration

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -115,17 +117,67 @@ func main() {
 	logger.Info("UMS shutdown complete")
 }
 
-// buildMongoClient creates a MongoDB client with connection pooling and auth
+// buildMongoClient creates a MongoDB client with connection pooling and auth.
+//
+// Two auth patterns are supported — credentials are NEVER stored as literal
+// text inside the URI string:
+//
+//  1. Templated URI (preferred for complex topologies):
+//     Set uri to a template containing <username> and <password> placeholders.
+//     At startup the placeholders are substituted with the config field values
+//     (properly URL-encoded), and the fully-resolved URI is passed to the
+//     driver. authSource, authMechanism, replicaSet, and any other query params
+//     in the URI template are preserved exactly.
+//     Example:
+//     uri: "mongodb://<username>:<password>@host.docker.internal:27017/mycelium_spine?authSource=admin"
+//     user: "spine_user"
+//     password: "s3cr3t"
+//
+//  2. Plain URI + config credentials (simple single-node setups):
+//     Leave the URI without placeholders and let auth_source / auth_mechanism
+//     config fields drive the Credential struct passed to SetAuth().
+//     Example:
+//     uri: "mongodb://host.docker.internal:27017"
+//     user: "spine_user"
+//     password: "s3cr3t"
+//     auth_source: "admin"
 func buildMongoClient(ctx context.Context, settings *utils.Settings, logger *slog.Logger) (*mongo.Client, error) {
-	clientOptions := options.Client().ApplyURI(settings.Mongo.URI)
+	// Resolve the connection URI. If the template contains <username> or
+	// <password> placeholders, substitute them with URL-encoded config values so
+	// that special characters in passwords are handled correctly and raw
+	// credentials never appear in the config URI string.
+	connURI := settings.Mongo.URI
+	useTemplate := strings.Contains(connURI, "<username>") || strings.Contains(connURI, "<password>")
+	if useTemplate {
+		if settings.Mongo.User == "" {
+			return nil, fmt.Errorf("mongo URI contains credential placeholders but mongo.user is not set in config")
+		}
+		connURI = strings.ReplaceAll(connURI, "<username>", url.PathEscape(settings.Mongo.User))
+		connURI = strings.ReplaceAll(connURI, "<password>", url.PathEscape(string(settings.Mongo.Password)))
+		logger.Debug("mongodb URI template resolved", "user", settings.Mongo.User)
+	}
 
-	// Add authentication if credentials provided
-	if settings.Mongo.User != "" {
+	clientOptions := options.Client().ApplyURI(connURI)
+
+	// When using a templated URI, ApplyURI() already has the full credential
+	// (user:pass + authSource from query params). Do not call SetAuth() — it
+	// would overwrite the parsed credential and drop query-string auth options.
+	//
+	// For a plain URI, call SetAuth() explicitly so auth_source and
+	// auth_mechanism from config are applied to the connection.
+	if !useTemplate && settings.Mongo.User != "" {
 		credential := options.Credential{
-			Username: settings.Mongo.User,
-			Password: string(settings.Mongo.Password),
+			Username:      settings.Mongo.User,
+			Password:      string(settings.Mongo.Password),
+			AuthSource:    settings.Mongo.AuthSource,
+			AuthMechanism: settings.Mongo.AuthMechanism,
 		}
 		clientOptions.SetAuth(credential)
+		logger.Debug("mongodb auth configured via SetAuth",
+			"user", settings.Mongo.User,
+			"auth_source", settings.Mongo.AuthSource,
+			"auth_mechanism", settings.Mongo.AuthMechanism,
+		)
 	}
 
 	// Configure connection pooling and timeouts
