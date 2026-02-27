@@ -107,10 +107,11 @@ func (r *MongoSessionRepository) UpdateResumeToken(ctx context.Context, sessionI
 	return nil
 }
 
-// UpdateAckPosition advances the ack cursor for a mailbox
-func (r *MongoSessionRepository) UpdateAckPosition(ctx context.Context, sessionID string, mailboxID string, seq uint64) error {
+// UpdateAckPosition advances the ack cursor for a mailbox, keyed by server_id.
+// Using server_id (not session_id) ensures ack progress survives session rotation and reconnects.
+func (r *MongoSessionRepository) UpdateAckPosition(ctx context.Context, serverID string, mailboxID string, seq uint64) error {
 	filter := bson.M{
-		"session_id": sessionID,
+		"server_id":  serverID,
 		"mailbox_id": mailboxID,
 	}
 
@@ -120,7 +121,7 @@ func (r *MongoSessionRepository) UpdateAckPosition(ctx context.Context, sessionI
 			"updated_at":     time.Now().Format(time.RFC3339),
 		},
 		"$setOnInsert": bson.M{
-			"session_id": sessionID,
+			"server_id":  serverID,
 			"mailbox_id": mailboxID,
 		},
 	}
@@ -134,9 +135,9 @@ func (r *MongoSessionRepository) UpdateAckPosition(ctx context.Context, sessionI
 	return nil
 }
 
-// GetAckPositions retrieves all ack positions for a session
-func (r *MongoSessionRepository) GetAckPositions(ctx context.Context, sessionID string) (map[string]uint64, error) {
-	cursor, err := r.cursors.Find(ctx, bson.M{"session_id": sessionID})
+// GetAckPositions retrieves all ack positions for a server (keyed by server_id).
+func (r *MongoSessionRepository) GetAckPositions(ctx context.Context, serverID string) (map[string]uint64, error) {
+	cursor, err := r.cursors.Find(ctx, bson.M{"server_id": serverID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ack positions: %w", err)
 	}
@@ -154,18 +155,26 @@ func (r *MongoSessionRepository) GetAckPositions(ctx context.Context, sessionID 
 	return positions, nil
 }
 
-// DeleteSession removes a session and its cursors
+// DeleteSession removes a session document only.
+// Ack cursors are intentionally NOT deleted because they are keyed by server_id and must
+// survive session rotation to prevent re-delivery of already-acknowledged commands.
+// Use DeleteServerCursors to explicitly remove cursors when decommissioning a server.
 func (r *MongoSessionRepository) DeleteSession(ctx context.Context, sessionID string) error {
-	// Delete session
+	// Delete session document only
 	_, err := r.sessions.DeleteOne(ctx, bson.M{"session_id": sessionID})
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 
-	// Delete associated cursors
-	_, err = r.cursors.DeleteMany(ctx, bson.M{"session_id": sessionID})
+	return nil
+}
+
+// DeleteServerCursors removes all ack cursors for a server.
+// Only call this when permanently decommissioning a server, never during normal reconnect.
+func (r *MongoSessionRepository) DeleteServerCursors(ctx context.Context, serverID string) error {
+	_, err := r.cursors.DeleteMany(ctx, bson.M{"server_id": serverID})
 	if err != nil {
-		return fmt.Errorf("failed to delete cursors: %w", err)
+		return fmt.Errorf("failed to delete server cursors: %w", err)
 	}
 
 	return nil

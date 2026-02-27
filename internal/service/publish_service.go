@@ -31,7 +31,7 @@ func NewPublishService(repo repository.Repository, deliveryService DeliveryServi
 
 // Publish resolves targets, appends envelopes to mailboxes, and triggers delivery
 func (s *publishServiceImpl) Publish(ctx context.Context, envelope *types.Envelope, targets []*types.Target) (*PublishResult, error) {
-	logger := s.logger.With("envelope_id", envelope.EnvelopeID, "type", envelope.Type, "qos", envelope.QoS)
+	logger := s.logger.With("envelope_id", envelope.EnvelopeID, "type", envelope.Type, "qos", envelope.QoS, "trace_id", envelope.TraceID)
 	logger.Info("publishing envelope", "target_count", len(targets))
 
 	// Resolve targets to mailbox IDs

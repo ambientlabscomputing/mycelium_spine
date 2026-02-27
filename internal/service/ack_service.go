@@ -26,13 +26,15 @@ func NewAckService(repo repository.Repository, m *metrics.Metrics) AckService {
 	}
 }
 
-// HandleCumulativeAck processes a cumulative ACK (all seq <= seqAcked)
-func (s *ackServiceImpl) HandleCumulativeAck(ctx context.Context, sessionID string, mailboxID string, seqAcked uint64) error {
-	logger := s.logger.With("session_id", sessionID, "mailbox_id", mailboxID, "seq_acked", seqAcked)
+// HandleCumulativeAck processes a cumulative ACK (all seq <= seqAcked).
+// serverID is the stable agent identity keyed by server_id (not session_id) so progress
+// persists across reconnects and session rotation.
+func (s *ackServiceImpl) HandleCumulativeAck(ctx context.Context, serverID string, mailboxID string, seqAcked uint64) error {
+	logger := s.logger.With("server_id", serverID, "mailbox_id", mailboxID, "seq_acked", seqAcked)
 	logger.Debug("processing cumulative ACK")
 
-	// Update ack position in repository
-	if err := s.repo.UpdateAckPosition(ctx, sessionID, mailboxID, seqAcked); err != nil {
+	// Update ack position in repository (keyed by server_id)
+	if err := s.repo.UpdateAckPosition(ctx, serverID, mailboxID, seqAcked); err != nil {
 		logger.Error("failed to update ack position", "error", err)
 		return fmt.Errorf("failed to update ack position: %w", err)
 	}

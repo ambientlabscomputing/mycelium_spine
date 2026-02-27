@@ -51,14 +51,19 @@ type SessionRepository interface {
 	// UpdateResumeToken rotates the resume token for a session
 	UpdateResumeToken(ctx context.Context, sessionID string, newToken string) error
 
-	// UpdateAckPosition advances the ack cursor for a mailbox
-	UpdateAckPosition(ctx context.Context, sessionID string, mailboxID string, seq uint64) error
+	// UpdateAckPosition advances the ack cursor for a mailbox, keyed by server_id (stable across sessions).
+	UpdateAckPosition(ctx context.Context, serverID string, mailboxID string, seq uint64) error
 
-	// GetAckPositions retrieves all ack positions for a session
-	GetAckPositions(ctx context.Context, sessionID string) (map[string]uint64, error)
+	// GetAckPositions retrieves all ack positions for a server, keyed by server_id.
+	GetAckPositions(ctx context.Context, serverID string) (map[string]uint64, error)
 
-	// DeleteSession removes a session and its cursors
+	// DeleteSession removes a session document only. Ack cursors are NOT deleted because they
+	// are keyed by server_id and must survive session rotation to prevent re-delivery.
 	DeleteSession(ctx context.Context, sessionID string) error
+
+	// DeleteServerCursors removes all ack cursors for a server. Call only when permanently
+	// decommissioning a server (not on normal reconnect or session rotation).
+	DeleteServerCursors(ctx context.Context, serverID string) error
 
 	// UpdateHeartbeat updates the session's last heartbeat timestamp
 	UpdateHeartbeat(ctx context.Context, sessionID string) error

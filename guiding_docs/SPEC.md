@@ -87,6 +87,8 @@ UMS supports these first-class mailbox targets:
 	•	SERVICE(service_id) (optional, future)
 	•	BROADCAST(scope) (restricted, admin-only)
 
+Mailboxes are strictly isolated by Organization ID. The internal routing key for any mailbox is a composite of `(target_type, target_id, org_id)`. This ensures that even if a UUID collision occurs, messages cannot cross organizational boundaries. Publishers must provide the correct `org_id` context when publishing, and subscribers are only granted access to mailboxes matching their authenticated `org_id`.
+
 4.2 Mailbox model
 
 A mailbox is a durable ordered log with:
@@ -230,6 +232,9 @@ Client may send FLOW_HINT:
 
 Both sides send PING/PONG at negotiated interval.
 Missed heartbeats trigger reconnect.
+
+**Timestamp Convention:**
+To ensure cross-language compatibility and consistent database querying, all session timestamps (e.g., `connected_at`, `last_heartbeat`) persisted in the database MUST use the RFC3339 string format (e.g., `"2026-02-26T15:04:05Z"`). However, at the protobuf/gRPC boundary (e.g., `server_time_ms` in the `WelcomeFrame`), timestamps are transmitted as `int64` Unix milliseconds for efficiency.
 
 9.2 Resume
 

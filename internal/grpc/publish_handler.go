@@ -28,7 +28,7 @@ func NewPublishHandler(appService service.Service) *PublishHandler {
 
 // Publish handles envelope publishing from external services (server_api, UCRS)
 func (h *PublishHandler) Publish(ctx context.Context, req *umsv1.PublishRequest) (*umsv1.PublishResponse, error) {
-	logger := h.logger.With("envelope_id", req.Envelope.EnvelopeId)
+	logger := h.logger.With("envelope_id", req.Envelope.EnvelopeId, "trace_id", req.Envelope.TraceId, "type", req.Envelope.Type)
 	logger.Info("received PublishRequest", "target_count", len(req.Targets))
 
 	// PHASE 1: Validate authentication via mTLS

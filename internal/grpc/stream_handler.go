@@ -162,7 +162,7 @@ func (h *StreamHandler) handleClientFrame(ctx context.Context, session *types.Se
 	case *umsv1.ClientFrame_Ack:
 		return h.appService.GetAckService().HandleCumulativeAck(
 			ctx,
-			session.SessionID,
+			session.ServerID,
 			f.Ack.MailboxId,
 			f.Ack.SeqAcked,
 		)

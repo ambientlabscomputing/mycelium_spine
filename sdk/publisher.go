@@ -90,6 +90,12 @@ func (p *Publisher) Publish(ctx context.Context, envelope *umsv1.Envelope, targe
 	if envelope.CreatedAtMs == 0 {
 		envelope.CreatedAtMs = currentTimeMs()
 	}
+	// Auto-populate trace ID from context if not already set
+	if envelope.TraceId == "" {
+		if traceID := TraceIDFromContext(ctx); traceID != "" {
+			envelope.TraceId = traceID
+		}
+	}
 
 	req := &umsv1.PublishRequest{
 		Envelope: envelope,

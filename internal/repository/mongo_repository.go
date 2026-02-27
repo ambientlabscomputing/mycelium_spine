@@ -132,17 +132,17 @@ func (r *MongoRepository) CreateIndexes(ctx context.Context) error {
 		return fmt.Errorf("failed to create sessions indexes: %w", err)
 	}
 
-	// Cursors indexes
+	// Cursors indexes (keyed by server_id, not session_id, so ack progress survives session rotation)
 	cursorIndexes := []mongo.IndexModel{
 		{
 			Keys: bson.D{
-				{Key: "session_id", Value: 1},
+				{Key: "server_id", Value: 1},
 				{Key: "mailbox_id", Value: 1},
 			},
 			Options: options.Index().SetUnique(true),
 		},
 		{
-			Keys: bson.D{{Key: "session_id", Value: 1}},
+			Keys: bson.D{{Key: "server_id", Value: 1}},
 		},
 	}
 

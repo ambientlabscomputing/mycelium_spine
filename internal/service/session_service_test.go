@@ -34,9 +34,10 @@ type MockRepository struct {
 	GetSessionByServerIDFunc    func(ctx context.Context, serverID string) (*types.Session, error)
 	GetSessionByResumeTokenFunc func(ctx context.Context, resumeToken string) (*types.Session, error)
 	UpdateResumeTokenFunc       func(ctx context.Context, sessionID string, newToken string) error
-	UpdateAckPositionFunc       func(ctx context.Context, sessionID string, mailboxID string, seq uint64) error
-	GetAckPositionsFunc         func(ctx context.Context, sessionID string) (map[string]uint64, error)
+	UpdateAckPositionFunc       func(ctx context.Context, serverID string, mailboxID string, seq uint64) error
+	GetAckPositionsFunc         func(ctx context.Context, serverID string) (map[string]uint64, error)
 	DeleteSessionFunc           func(ctx context.Context, sessionID string) error
+	DeleteServerCursorsFunc     func(ctx context.Context, serverID string) error
 	UpdateHeartbeatFunc         func(ctx context.Context, sessionID string) error
 	UpdateSubscriptionsFunc     func(ctx context.Context, sessionID string, mailboxIDs []string) error
 
@@ -88,16 +89,16 @@ func (m *MockRepository) UpdateResumeToken(ctx context.Context, sessionID string
 	return nil
 }
 
-func (m *MockRepository) UpdateAckPosition(ctx context.Context, sessionID string, mailboxID string, seq uint64) error {
+func (m *MockRepository) UpdateAckPosition(ctx context.Context, serverID string, mailboxID string, seq uint64) error {
 	if m.UpdateAckPositionFunc != nil {
-		return m.UpdateAckPositionFunc(ctx, sessionID, mailboxID, seq)
+		return m.UpdateAckPositionFunc(ctx, serverID, mailboxID, seq)
 	}
 	return nil
 }
 
-func (m *MockRepository) GetAckPositions(ctx context.Context, sessionID string) (map[string]uint64, error) {
+func (m *MockRepository) GetAckPositions(ctx context.Context, serverID string) (map[string]uint64, error) {
 	if m.GetAckPositionsFunc != nil {
-		return m.GetAckPositionsFunc(ctx, sessionID)
+		return m.GetAckPositionsFunc(ctx, serverID)
 	}
 	return make(map[string]uint64), nil
 }
@@ -105,6 +106,13 @@ func (m *MockRepository) GetAckPositions(ctx context.Context, sessionID string) 
 func (m *MockRepository) DeleteSession(ctx context.Context, sessionID string) error {
 	if m.DeleteSessionFunc != nil {
 		return m.DeleteSessionFunc(ctx, sessionID)
+	}
+	return nil
+}
+
+func (m *MockRepository) DeleteServerCursors(ctx context.Context, serverID string) error {
+	if m.DeleteServerCursorsFunc != nil {
+		return m.DeleteServerCursorsFunc(ctx, serverID)
 	}
 	return nil
 }
@@ -337,7 +345,7 @@ func TestHandleResume_Success(t *testing.T) {
 			assert.NotEqual(t, oldResumeToken, newToken)
 			return nil
 		},
-		GetAckPositionsFunc: func(ctx context.Context, sessionID string) (map[string]uint64, error) {
+		GetAckPositionsFunc: func(ctx context.Context, serverID string) (map[string]uint64, error) {
 			return ackPositions, nil
 		},
 	}

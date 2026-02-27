@@ -114,8 +114,8 @@ func (s *deliveryServiceImpl) deliveryLoop(ctx context.Context, session *types.S
 func (s *deliveryServiceImpl) deliverFromMailbox(ctx context.Context, session *types.Session, mailboxID string) {
 	logger := s.logger.With("session_id", session.SessionID, "mailbox_id", mailboxID)
 
-	// Get current ack position
-	ackPositions, err := s.repo.GetAckPositions(ctx, session.SessionID)
+	// Get current ack position (keyed by server_id so it survives session restarts)
+	ackPositions, err := s.repo.GetAckPositions(ctx, session.ServerID)
 	if err != nil {
 		logger.Error("failed to get ack positions", "error", err)
 		return
@@ -192,6 +192,14 @@ func (s *deliveryServiceImpl) DeliverToSession(ctx context.Context, session *typ
 	protoEnvelopes := make([]*umsv1.Envelope, 0)
 	for _, envs := range batchByQoS {
 		for _, env := range envs {
+			logger.Debug("delivering envelope",
+				"envelope_id", env.EnvelopeID,
+				"trace_id", env.TraceID,
+				"type", env.Type,
+				"seq", env.Seq,
+				"qos", env.QoS,
+				"mailbox_id", env.MailboxID,
+			)
 			protoEnv := &umsv1.Envelope{
 				EnvelopeId:  env.EnvelopeID,
 				MailboxId:   env.MailboxID,

@@ -57,7 +57,9 @@ type PublishResult struct {
 
 // AckService processes acknowledgements from clients
 type AckService interface {
-	HandleCumulativeAck(ctx context.Context, sessionID string, mailboxID string, seqAcked uint64) error
+	// HandleCumulativeAck records that the client has processed all envelopes up to seqAcked.
+	// serverID is the stable agent identity (not session_id) so progress survives reconnects.
+	HandleCumulativeAck(ctx context.Context, serverID string, mailboxID string, seqAcked uint64) error
 	HandleSelectiveAck(ctx context.Context, sessionID string, mailboxID string, seqs []uint64) error
 	HandleNack(ctx context.Context, sessionID string, mailboxID string, seq uint64, reason string) error
 }

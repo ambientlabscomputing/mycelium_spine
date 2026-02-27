@@ -140,8 +140,8 @@ func (s *sessionServiceImpl) HandleResume(ctx context.Context, resumeToken strin
 		return nil, nil, fmt.Errorf("failed to update session: %w", err)
 	}
 
-	// Fetch ack positions for replay
-	ackPositions, err := s.repo.GetAckPositions(ctx, session.SessionID)
+	// Fetch ack positions for replay (keyed by server_id so they survive session rotation)
+	ackPositions, err := s.repo.GetAckPositions(ctx, session.ServerID)
 	if err != nil {
 		logger.Error("failed to get ack positions", "error", err)
 		return nil, nil, fmt.Errorf("failed to get ack positions: %w", err)

@@ -10,14 +10,14 @@ import (
 )
 
 func TestHandleCumulativeAck_Success(t *testing.T) {
-	sessionID := "test-session-1"
+	serverID := "test-server-1"
 	mailboxID := "mailbox-123"
 	seqAcked := uint64(100)
 	ackCalled := false
 
 	mockRepo := &MockRepository{
 		UpdateAckPositionFunc: func(ctx context.Context, sid string, mid string, seq uint64) error {
-			assert.Equal(t, sessionID, sid)
+			assert.Equal(t, serverID, sid)
 			assert.Equal(t, mailboxID, mid)
 			assert.Equal(t, seqAcked, seq)
 			ackCalled = true
@@ -28,7 +28,7 @@ func TestHandleCumulativeAck_Success(t *testing.T) {
 	svc := NewAckService(mockRepo, testMetrics)
 
 	ctx := context.Background()
-	err := svc.HandleCumulativeAck(ctx, sessionID, mailboxID, seqAcked)
+	err := svc.HandleCumulativeAck(ctx, serverID, mailboxID, seqAcked)
 
 	require.NoError(t, err)
 	assert.True(t, ackCalled)
@@ -63,7 +63,7 @@ func TestHandleCumulativeAck_TableDriven(t *testing.T) {
 	}{
 		{
 			name:      "successful ack",
-			sessionID: "session-1",
+			sessionID: "server-1",
 			mailboxID: "mailbox-1",
 			seqAcked:  50,
 			repoError: nil,
@@ -71,7 +71,7 @@ func TestHandleCumulativeAck_TableDriven(t *testing.T) {
 		},
 		{
 			name:       "repository error",
-			sessionID:  "session-2",
+			sessionID:  "server-2",
 			mailboxID:  "mailbox-2",
 			seqAcked:   100,
 			repoError:  errors.New("connection timeout"),
@@ -80,7 +80,7 @@ func TestHandleCumulativeAck_TableDriven(t *testing.T) {
 		},
 		{
 			name:      "zero sequence",
-			sessionID: "session-3",
+			sessionID: "server-3",
 			mailboxID: "mailbox-3",
 			seqAcked:  0,
 			repoError: nil,
@@ -88,7 +88,7 @@ func TestHandleCumulativeAck_TableDriven(t *testing.T) {
 		},
 		{
 			name:      "large sequence number",
-			sessionID: "session-4",
+			sessionID: "server-4",
 			mailboxID: "mailbox-4",
 			seqAcked:  uint64(1<<63 - 1),
 			repoError: nil,

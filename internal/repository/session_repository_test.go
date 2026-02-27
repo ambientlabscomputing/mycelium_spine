@@ -304,9 +304,10 @@ func testUpdateSubscriptions(t *testing.T, ctx context.Context, repo *MongoRepos
 
 func testDeleteSession(t *testing.T, ctx context.Context, repo *MongoRepository) {
 	sessionID := "session-delete-1"
+	serverID := "server-delete-1"
 	session := &types.Session{
 		SessionID:     sessionID,
-		ServerID:      "server-delete-1",
+		ServerID:      serverID,
 		OrgID:         "org-1",
 		SessionEpoch:  1,
 		ResumeToken:   "token-delete",
@@ -317,32 +318,44 @@ func testDeleteSession(t *testing.T, ctx context.Context, repo *MongoRepository)
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
 
-	// Create some cursors for this session
-	err = repo.UpdateAckPosition(ctx, sessionID, "mailbox-1", 10)
+	// Create some cursors keyed by server_id
+	err = repo.UpdateAckPosition(ctx, serverID, "mailbox-1", 10)
 	require.NoError(t, err)
-	err = repo.UpdateAckPosition(ctx, sessionID, "mailbox-2", 20)
+	err = repo.UpdateAckPosition(ctx, serverID, "mailbox-2", 20)
 	require.NoError(t, err)
 
-	// Delete the session
+	// Delete the session document only
 	err = repo.DeleteSession(ctx, sessionID)
 	assert.NoError(t, err)
 
-	// Verify session is deleted
+	// Verify session document is deleted
 	_, err = repo.GetSession(ctx, sessionID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "session not found")
 
-	// Verify cursors are deleted
-	positions, err := repo.GetAckPositions(ctx, sessionID)
+	// Ack cursors MUST survive session deletion (they are server-scoped, not session-scoped)
+	positions, err := repo.GetAckPositions(ctx, serverID)
+	assert.NoError(t, err)
+	assert.Len(t, positions, 2, "cursors must survive session rotation to prevent re-delivery")
+	assert.Equal(t, uint64(10), positions["mailbox-1"])
+	assert.Equal(t, uint64(20), positions["mailbox-2"])
+
+	// Explicitly delete cursors (only when decommissioning the server)
+	err = repo.DeleteServerCursors(ctx, serverID)
+	assert.NoError(t, err)
+
+	// Now cursors should be gone
+	positions, err = repo.GetAckPositions(ctx, serverID)
 	assert.NoError(t, err)
 	assert.Empty(t, positions)
 }
 
 func testUpdateAckPosition(t *testing.T, ctx context.Context, repo *MongoRepository) {
 	sessionID := "session-ack-1"
+	serverID := "server-ack-1"
 	session := &types.Session{
 		SessionID:     sessionID,
-		ServerID:      "server-ack-1",
+		ServerID:      serverID,
 		OrgID:         "org-1",
 		SessionEpoch:  1,
 		ResumeToken:   "token-ack",
@@ -353,24 +366,24 @@ func testUpdateAckPosition(t *testing.T, ctx context.Context, repo *MongoReposit
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
 
-	// Create initial ack position (upsert)
-	err = repo.UpdateAckPosition(ctx, sessionID, "mailbox-1", 5)
+	// Create initial ack position (upsert), keyed by server_id
+	err = repo.UpdateAckPosition(ctx, serverID, "mailbox-1", 5)
 	assert.NoError(t, err)
 
 	// Update to higher sequence
-	err = repo.UpdateAckPosition(ctx, sessionID, "mailbox-1", 10)
+	err = repo.UpdateAckPosition(ctx, serverID, "mailbox-1", 10)
 	assert.NoError(t, err)
 
 	// Verify the position
-	positions, err := repo.GetAckPositions(ctx, sessionID)
+	positions, err := repo.GetAckPositions(ctx, serverID)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(10), positions["mailbox-1"])
 
 	// Create position for different mailbox
-	err = repo.UpdateAckPosition(ctx, sessionID, "mailbox-2", 7)
+	err = repo.UpdateAckPosition(ctx, serverID, "mailbox-2", 7)
 	assert.NoError(t, err)
 
-	positions, err = repo.GetAckPositions(ctx, sessionID)
+	positions, err = repo.GetAckPositions(ctx, serverID)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(10), positions["mailbox-1"])
 	assert.Equal(t, uint64(7), positions["mailbox-2"])
@@ -378,9 +391,10 @@ func testUpdateAckPosition(t *testing.T, ctx context.Context, repo *MongoReposit
 
 func testGetAckPositions(t *testing.T, ctx context.Context, repo *MongoRepository) {
 	sessionID := "session-positions-1"
+	serverID := "server-positions-1"
 	session := &types.Session{
 		SessionID:     sessionID,
-		ServerID:      "server-positions-1",
+		ServerID:      serverID,
 		OrgID:         "org-1",
 		SessionEpoch:  1,
 		ResumeToken:   "token-positions",
@@ -392,11 +406,11 @@ func testGetAckPositions(t *testing.T, ctx context.Context, repo *MongoRepositor
 	require.NoError(t, err)
 
 	// Initially empty
-	positions, err := repo.GetAckPositions(ctx, sessionID)
+	positions, err := repo.GetAckPositions(ctx, serverID)
 	assert.NoError(t, err)
 	assert.Empty(t, positions)
 
-	// Add multiple positions
+	// Add multiple positions (keyed by server_id)
 	mailboxes := map[string]uint64{
 		"mailbox-a": 100,
 		"mailbox-b": 200,
@@ -404,20 +418,20 @@ func testGetAckPositions(t *testing.T, ctx context.Context, repo *MongoRepositor
 	}
 
 	for mailboxID, seq := range mailboxes {
-		err = repo.UpdateAckPosition(ctx, sessionID, mailboxID, seq)
+		err = repo.UpdateAckPosition(ctx, serverID, mailboxID, seq)
 		require.NoError(t, err)
 	}
 
 	// Retrieve all positions
-	positions, err = repo.GetAckPositions(ctx, sessionID)
+	positions, err = repo.GetAckPositions(ctx, serverID)
 	assert.NoError(t, err)
 	assert.Len(t, positions, 3)
 	for mailboxID, expectedSeq := range mailboxes {
 		assert.Equal(t, expectedSeq, positions[mailboxID])
 	}
 
-	// Test for session with no positions
-	positions, err = repo.GetAckPositions(ctx, "non-existent-session")
+	// Test for server with no positions
+	positions, err = repo.GetAckPositions(ctx, "non-existent-server")
 	assert.NoError(t, err)
 	assert.Empty(t, positions)
 }
@@ -452,11 +466,12 @@ func testSessionIndexes(t *testing.T, ctx context.Context, repo *MongoRepository
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate")
 
-	// Test cursor unique constraint (session_id + mailbox_id)
-	sessionID := "session-cursor-unique"
+	// Test cursor unique constraint (server_id + mailbox_id)
+	// A single server can only have one cursor per mailbox (upsert semantics)
+	serverIDUnique := "server-unique"
 	session3 := &types.Session{
-		SessionID:     sessionID,
-		ServerID:      "server-unique",
+		SessionID:     "session-cursor-unique",
+		ServerID:      serverIDUnique,
 		OrgID:         "org-1",
 		SessionEpoch:  1,
 		ResumeToken:   "token-unique",
@@ -468,15 +483,15 @@ func testSessionIndexes(t *testing.T, ctx context.Context, repo *MongoRepository
 	require.NoError(t, err)
 
 	// First insert succeeds
-	err = repo.UpdateAckPosition(ctx, sessionID, "mailbox-unique", 10)
+	err = repo.UpdateAckPosition(ctx, serverIDUnique, "mailbox-unique", 10)
 	assert.NoError(t, err)
 
 	// Update (not insert) should succeed
-	err = repo.UpdateAckPosition(ctx, sessionID, "mailbox-unique", 20)
+	err = repo.UpdateAckPosition(ctx, serverIDUnique, "mailbox-unique", 20)
 	assert.NoError(t, err)
 
 	// Verify only one cursor exists
-	positions, err := repo.GetAckPositions(ctx, sessionID)
+	positions, err := repo.GetAckPositions(ctx, serverIDUnique)
 	assert.NoError(t, err)
 	assert.Len(t, positions, 1)
 	assert.Equal(t, uint64(20), positions["mailbox-unique"])

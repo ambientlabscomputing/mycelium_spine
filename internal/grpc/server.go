@@ -154,10 +154,15 @@ func loadTLSConfig(settings *utils.Settings) (*tls.Config, error) {
 
 func unaryLoggingInterceptor(logger *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		logger.Debug("unary RPC call", "method", info.FullMethod)
+		// Extract trace ID if this is a PublishRequest
+		logAttrs := []any{"method", info.FullMethod}
+		if pubReq, ok := req.(*umsv1.PublishRequest); ok && pubReq.Envelope != nil && pubReq.Envelope.TraceId != "" {
+			logAttrs = append(logAttrs, "trace_id", pubReq.Envelope.TraceId)
+		}
+		logger.Debug("unary RPC call", logAttrs...)
 		resp, err := handler(ctx, req)
 		if err != nil {
-			logger.Error("unary RPC error", "method", info.FullMethod, "error", err)
+			logger.Error("unary RPC error", append(logAttrs, "error", err)...)
 		}
 		return resp, err
 	}

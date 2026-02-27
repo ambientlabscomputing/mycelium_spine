@@ -54,18 +54,19 @@ func NewMailbox(targetType TargetType, targetID string, orgID string, retentionP
 	}
 }
 
-// MailboxCursor tracks the last acknowledged sequence per session
+// MailboxCursor tracks the last acknowledged sequence per server (stable across session restarts).
+// Keyed by (server_id, mailbox_id) so that ack progress survives session rotation and reconnects.
 type MailboxCursor struct {
-	SessionID    string `json:"session_id" bson:"session_id"`
+	ServerID     string `json:"server_id" bson:"server_id"`
 	MailboxID    string `json:"mailbox_id" bson:"mailbox_id"`
 	LastAckedSeq uint64 `json:"last_acked_seq" bson:"last_acked_seq"`
 	UpdatedAt    string `json:"updated_at" bson:"updated_at"`
 }
 
-// NewMailboxCursor creates a new cursor for a mailbox
-func NewMailboxCursor(sessionID string, mailboxID string) *MailboxCursor {
+// NewMailboxCursor creates a new cursor for a mailbox, keyed by server_id.
+func NewMailboxCursor(serverID string, mailboxID string) *MailboxCursor {
 	return &MailboxCursor{
-		SessionID:    sessionID,
+		ServerID:     serverID,
 		MailboxID:    mailboxID,
 		LastAckedSeq: 0, // Start at 0, first delivery will be seq 1
 		UpdatedAt:    time.Now().Format(time.RFC3339),
