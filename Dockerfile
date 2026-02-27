@@ -3,14 +3,14 @@
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make protobuf-dev
 
-# Install protoc plugins
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+# Install protoc plugins (pinned to versions compatible with go.mod)
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
 # Set working directory
 WORKDIR /build
@@ -25,8 +25,9 @@ COPY . .
 # Generate proto code
 RUN make proto
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo \
+# Build the application (TARGETARCH is set automatically by Docker Buildx for multi-platform builds)
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -installsuffix cgo \
     -ldflags="-w -s" \
     -o spine \
     cmd/serve/main.go
