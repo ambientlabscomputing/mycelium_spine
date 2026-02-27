@@ -3,7 +3,9 @@ package sdk
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"os"
 
 	umsv1 "github.com/ambientlabscomputing/mycelium_spine/proto/ums/v1"
 	"google.golang.org/grpc"
@@ -29,6 +31,21 @@ func WithTLS(config *tls.Config) PublisherOption {
 	return func(o *publisherOptions) {
 		o.tlsConfig = config
 	}
+}
+
+// LoadCATLSConfig creates a *tls.Config that trusts only the given CA certificate.
+// Use this when the server presents a certificate signed by a private CA and the
+// client does not need to present its own certificate (client_auth: "none").
+func LoadCATLSConfig(caPath string) (*tls.Config, error) {
+	caCert, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA certificate %q: %w", caPath, err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to parse CA certificate %q", caPath)
+	}
+	return &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}, nil
 }
 
 // NewPublisher creates a new publisher client

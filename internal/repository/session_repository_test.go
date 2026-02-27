@@ -102,8 +102,8 @@ func testCreateSession(t *testing.T, ctx context.Context, repo *MongoRepository)
 		SessionEpoch:  1,
 		ResumeToken:   "token-1",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 
 	err := repo.CreateSession(ctx, session)
@@ -128,8 +128,8 @@ func testGetSession(t *testing.T, ctx context.Context, repo *MongoRepository) {
 		SessionEpoch:  1,
 		ResumeToken:   "token-get-1",
 		Subscriptions: []string{"mailbox-1", "mailbox-2"},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
@@ -161,8 +161,8 @@ func testGetSessionByServerID(t *testing.T, ctx context.Context, repo *MongoRepo
 			SessionEpoch:  i,
 			ResumeToken:   fmt.Sprintf("token-epoch-%d", i),
 			Subscriptions: []string{},
-			ConnectedAt:   time.Now().UnixMilli(),
-			LastHeartbeat: time.Now().UnixMilli(),
+			ConnectedAt:   time.Now().Format(time.RFC3339),
+			LastHeartbeat: time.Now().Format(time.RFC3339),
 		}
 		err := repo.CreateSession(ctx, session)
 		require.NoError(t, err)
@@ -188,8 +188,8 @@ func testGetSessionByResumeToken(t *testing.T, ctx context.Context, repo *MongoR
 		SessionEpoch:  1,
 		ResumeToken:   "unique-resume-token-123",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
@@ -214,8 +214,8 @@ func testUpdateResumeToken(t *testing.T, ctx context.Context, repo *MongoReposit
 		SessionEpoch:  1,
 		ResumeToken:   "old-token",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
@@ -236,7 +236,7 @@ func testUpdateResumeToken(t *testing.T, ctx context.Context, repo *MongoReposit
 }
 
 func testUpdateHeartbeat(t *testing.T, ctx context.Context, repo *MongoRepository) {
-	oldTime := time.Now().Add(-5 * time.Minute).UnixMilli()
+	oldTime := time.Now().Add(-5 * time.Minute).Format(time.RFC3339)
 	session := &types.Session{
 		SessionID:     "session-heartbeat-1",
 		ServerID:      "server-heartbeat-1",
@@ -257,11 +257,10 @@ func testUpdateHeartbeat(t *testing.T, ctx context.Context, repo *MongoRepositor
 	err = repo.UpdateHeartbeat(ctx, "session-heartbeat-1")
 	assert.NoError(t, err)
 
-	// NOTE: UpdateHeartbeat stores last_heartbeat as RFC3339 string, but Session struct expects int64
-	// This causes a decoding error. This is a known data type inconsistency in the repository layer.
-	// The test verifies the update operation succeeds, but we can't retrieve the session afterwards
-	// due to the type mismatch. This should be fixed in the repository implementation.
-	t.Log("UpdateHeartbeat succeeded, but GetSession would fail due to type mismatch (int64 vs string)")
+	// Verify the heartbeat was updated and session can be retrieved
+	retrieved, err := repo.GetSession(ctx, "session-heartbeat-1")
+	assert.NoError(t, err)
+	assert.NotEqual(t, oldTime, retrieved.LastHeartbeat, "heartbeat should have been updated")
 
 	// Test update on non-existent session
 	err = repo.UpdateHeartbeat(ctx, "non-existent")
@@ -277,8 +276,8 @@ func testUpdateSubscriptions(t *testing.T, ctx context.Context, repo *MongoRepos
 		SessionEpoch:  1,
 		ResumeToken:   "token-sub",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
@@ -312,8 +311,8 @@ func testDeleteSession(t *testing.T, ctx context.Context, repo *MongoRepository)
 		SessionEpoch:  1,
 		ResumeToken:   "token-delete",
 		Subscriptions: []string{"mailbox-1"},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
@@ -348,8 +347,8 @@ func testUpdateAckPosition(t *testing.T, ctx context.Context, repo *MongoReposit
 		SessionEpoch:  1,
 		ResumeToken:   "token-ack",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
@@ -386,8 +385,8 @@ func testGetAckPositions(t *testing.T, ctx context.Context, repo *MongoRepositor
 		SessionEpoch:  1,
 		ResumeToken:   "token-positions",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
@@ -432,8 +431,8 @@ func testSessionIndexes(t *testing.T, ctx context.Context, repo *MongoRepository
 		SessionEpoch:  1,
 		ResumeToken:   "token-1",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session1)
 	require.NoError(t, err)
@@ -446,8 +445,8 @@ func testSessionIndexes(t *testing.T, ctx context.Context, repo *MongoRepository
 		SessionEpoch:  2,
 		ResumeToken:   "token-2",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err = repo.CreateSession(ctx, session2)
 	assert.Error(t, err)
@@ -462,8 +461,8 @@ func testSessionIndexes(t *testing.T, ctx context.Context, repo *MongoRepository
 		SessionEpoch:  1,
 		ResumeToken:   "token-unique",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err = repo.CreateSession(ctx, session3)
 	require.NoError(t, err)

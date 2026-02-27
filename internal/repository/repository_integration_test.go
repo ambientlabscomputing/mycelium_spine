@@ -107,8 +107,8 @@ func testSessionWithSubscriptionsAndAckPositions(t *testing.T, ctx context.Conte
 		SessionEpoch:  1,
 		ResumeToken:   "token-full-1",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)
@@ -222,8 +222,8 @@ func testSessionResumeScenario(t *testing.T, ctx context.Context, repo *MongoRep
 		SessionEpoch:  1,
 		ResumeToken:   "token-1",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session1)
 	require.NoError(t, err)
@@ -255,8 +255,8 @@ func testSessionResumeScenario(t *testing.T, ctx context.Context, repo *MongoRep
 		SessionEpoch:  2,
 		ResumeToken:   "token-3",
 		Subscriptions: []string{mailbox.MailboxID},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err = repo.CreateSession(ctx, session2)
 	require.NoError(t, err)
@@ -353,8 +353,8 @@ func testConcurrentSessionsAndEnvelopes(t *testing.T, ctx context.Context, repo 
 				SessionEpoch:  1,
 				ResumeToken:   fmt.Sprintf("token-concurrent-%d", sessionNum),
 				Subscriptions: []string{},
-				ConnectedAt:   time.Now().UnixMilli(),
-				LastHeartbeat: time.Now().UnixMilli(),
+				ConnectedAt:   time.Now().Format(time.RFC3339),
+				LastHeartbeat: time.Now().Format(time.RFC3339),
 			}
 			err := repo.CreateSession(ctx, session)
 			if err != nil {
@@ -485,8 +485,8 @@ func testEnvelopeDeliveryFlow(t *testing.T, ctx context.Context, repo *MongoRepo
 		SessionEpoch:  1,
 		ResumeToken:   "token-delivery-1",
 		Subscriptions: []string{},
-		ConnectedAt:   time.Now().UnixMilli(),
-		LastHeartbeat: time.Now().UnixMilli(),
+		ConnectedAt:   time.Now().Format(time.RFC3339),
+		LastHeartbeat: time.Now().Format(time.RFC3339),
 	}
 	err := repo.CreateSession(ctx, session)
 	require.NoError(t, err)

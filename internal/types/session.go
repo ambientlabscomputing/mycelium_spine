@@ -16,8 +16,8 @@ type Session struct {
 	SessionEpoch      uint64          `json:"session_epoch" bson:"session_epoch"` // Monotonic per server_id
 	ResumeToken       string          `json:"resume_token" bson:"resume_token"`
 	Subscriptions     []string        `json:"subscriptions" bson:"subscriptions"` // Mailbox IDs
-	ConnectedAt       int64           `json:"connected_at" bson:"connected_at"`
-	LastHeartbeat     int64           `json:"last_heartbeat" bson:"last_heartbeat"`
+	ConnectedAt       string          `json:"connected_at" bson:"connected_at"`
+	LastHeartbeat     string          `json:"last_heartbeat" bson:"last_heartbeat"`
 	DeviceFingerprint string          `json:"device_fingerprint,omitempty" bson:"device_fingerprint,omitempty"`
 	ClientFeatures    map[string]bool `json:"client_features,omitempty" bson:"client_features,omitempty"`
 
@@ -29,7 +29,7 @@ type Session struct {
 
 // NewSession creates a new session
 func NewSession(serverID string, orgID string, epoch uint64, deviceFingerprint string, clientFeatures map[string]bool, stream umsv1.SpineStream_ConnectServer) *Session {
-	now := time.Now().UnixMilli()
+	now := time.Now().Format(time.RFC3339)
 	sessionID := uuid.New().String()
 	resumeToken := uuid.New().String()
 
@@ -55,7 +55,7 @@ func NewSession(serverID string, orgID string, epoch uint64, deviceFingerprint s
 
 // UpdateHeartbeat updates the last heartbeat timestamp
 func (s *Session) UpdateHeartbeat() {
-	s.LastHeartbeat = time.Now().UnixMilli()
+	s.LastHeartbeat = time.Now().Format(time.RFC3339)
 }
 
 // RotateResumeToken generates a new resume token

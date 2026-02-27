@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/ambientlabscomputing/mycelium_spine/internal/metrics"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
@@ -88,7 +89,7 @@ func (s *sessionServiceImpl) HandleHello(ctx context.Context, hello *umsv1.Hello
 		SessionId:    session.SessionID,
 		SessionEpoch: session.SessionEpoch,
 		ResumeToken:  session.ResumeToken,
-		ServerTimeMs: session.LastHeartbeat,
+		ServerTimeMs: time.Now().UnixMilli(),
 		Policy: &umsv1.SessionPolicy{
 			MaxInflightTotal:         int32(s.settings.FlowControl.MaxInflightTotal),
 			MaxInflightCommand:       int32(s.settings.FlowControl.MaxInflightCommand),

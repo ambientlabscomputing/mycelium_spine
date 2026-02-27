@@ -48,12 +48,12 @@ func TestNewSession(t *testing.T) {
 		t.Errorf("expected 2 client features, got %d", len(session.ClientFeatures))
 	}
 
-	if session.ConnectedAt == 0 {
-		t.Error("expected non-zero connected timestamp")
+	if session.ConnectedAt == "" {
+		t.Error("expected non-empty connected timestamp")
 	}
 
-	if session.LastHeartbeat == 0 {
-		t.Error("expected non-zero heartbeat timestamp")
+	if session.LastHeartbeat == "" {
+		t.Error("expected non-empty heartbeat timestamp")
 	}
 
 	if len(session.Subscriptions) != 0 {
@@ -80,8 +80,8 @@ func TestSessionUpdateHeartbeat(t *testing.T) {
 
 	session.UpdateHeartbeat()
 
-	if session.LastHeartbeat == 0 {
-		t.Error("expected non-zero heartbeat timestamp")
+	if session.LastHeartbeat == "" {
+		t.Error("expected non-empty heartbeat timestamp")
 	}
 }
 
