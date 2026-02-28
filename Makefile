@@ -105,8 +105,14 @@ clean:
 .PHONY: docker-build
 docker-build:
 	@echo "Building Docker image..."
-	docker build -t underleaf/mycelium-spine:latest .
-	@echo "Docker image built: underleaf/mycelium-spine:latest"
+	docker build -t ambientlabsjose/mycelium_spine:develop .
+	@echo "Docker image built: ambientlabsjose/mycelium_spine:develop"
+
+.PHONY: docker-push
+docker-push: docker-build
+	@echo "Pushing Docker image to registry..."
+	docker push ambientlabsjose/mycelium_spine:develop
+	@echo "Docker image pushed: ambientlabsjose/mycelium_spine:develop"
 
 .PHONY: docker-run
 docker-run:
