@@ -3,8 +3,8 @@ module github.com/ambientlabscomputing/mycelium_spine/e2e
 go 1.25.5
 
 require (
-	github.com/ambientlabscomputing/mycelium_spine v0.0.0
-	github.com/ambientlabscomputing/mycelium_spine/sdk v0.0.0
+	github.com/ambientlabscomputing/mycelium_spine v1.0.0
+	github.com/ambientlabscomputing/mycelium_spine/sdk v1.0.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	go.mongodb.org/mongo-driver v1.13.1
@@ -83,7 +83,3 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/ambientlabscomputing/mycelium_spine => ../
-
-replace github.com/ambientlabscomputing/mycelium_spine/sdk => ../sdk

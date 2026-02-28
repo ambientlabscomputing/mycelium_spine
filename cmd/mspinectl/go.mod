@@ -3,8 +3,8 @@ module github.com/ambientlabscomputing/mycelium_spine/cmd/mspinectl
 go 1.25.5
 
 require (
-	github.com/ambientlabscomputing/mycelium_spine v0.0.0
-	github.com/ambientlabscomputing/mycelium_spine/sdk v0.0.0
+	github.com/ambientlabscomputing/mycelium_spine v1.0.0
+	github.com/ambientlabscomputing/mycelium_spine/sdk v1.0.0
 	github.com/spf13/cobra v1.8.1
 )
 
@@ -18,7 +18,3 @@ require (
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/ambientlabscomputing/mycelium_spine => ../../
-
-replace github.com/ambientlabscomputing/mycelium_spine/sdk => ../../sdk
