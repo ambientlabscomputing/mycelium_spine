@@ -23,13 +23,27 @@ type Publisher struct {
 type PublisherOption func(*publisherOptions)
 
 type publisherOptions struct {
-	tlsConfig *tls.Config
+	tlsConfig  *tls.Config
+	headerAuth *HeaderAuthCredentials
+	err        error
 }
 
 // WithTLS configures TLS for the publisher
 func WithTLS(config *tls.Config) PublisherOption {
 	return func(o *publisherOptions) {
 		o.tlsConfig = config
+	}
+}
+
+// WithHeaderAuth configures mTLS over headers (e.g. for behind Cloudflare Tunnels)
+func WithHeaderAuth(certPath, keyPath string) PublisherOption {
+	return func(o *publisherOptions) {
+		creds, err := LoadHeaderAuthCredentials(certPath, keyPath)
+		if err != nil {
+			o.err = fmt.Errorf("failed to load header auth credentials: %w", err)
+			return
+		}
+		o.headerAuth = creds
 	}
 }
 
@@ -55,11 +69,19 @@ func NewPublisher(addr string, opts ...PublisherOption) (*Publisher, error) {
 		opt(options)
 	}
 
+	if options.err != nil {
+		return nil, options.err
+	}
+
 	var grpcOpts []grpc.DialOption
 	if options.tlsConfig != nil {
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(credentials.NewTLS(options.tlsConfig)))
 	} else {
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+
+	if options.headerAuth != nil {
+		grpcOpts = append(grpcOpts, grpc.WithUnaryInterceptor(UnaryHeaderAuthInterceptor(options.headerAuth)))
 	}
 
 	conn, err := grpc.NewClient(addr, grpcOpts...)

@@ -55,6 +55,11 @@ auth:
   # Require mTLS on all connections
   require_mtls: true
 
+  # Cloudflare tunnel proxy auth
+  header_auth:
+    enabled: true
+    timestamp_skew_seconds: 300
+
 # =============================================================================
 # Session Configuration
 # =============================================================================

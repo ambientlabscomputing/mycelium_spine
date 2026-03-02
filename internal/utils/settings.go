@@ -89,10 +89,17 @@ type Settings struct {
 		Port    int `yaml:"port"`    // HTTP port for /metrics endpoint
 	} `yaml:"metrics"`
 
-	// OAuth 2.0 authentication (for validating JWT tokens from clients)
+	// Authentication settings
 	Auth struct {
 		AuthDomain   string `yaml:"auth_domain"`
 		AuthAudience string `yaml:"auth_audience"`
+
+		RequireMTLS          bool     `yaml:"require_mtls"`
+		AuthorizedPublishers []string `yaml:"authorized_publishers"`
+		HeaderAuth           struct {
+			Enabled              bool `yaml:"enabled"`
+			TimestampSkewSeconds int  `yaml:"timestamp_skew_seconds"`
+		} `yaml:"header_auth"`
 	} `yaml:"auth"`
 }
 

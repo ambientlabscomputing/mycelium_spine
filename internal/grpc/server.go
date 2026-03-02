@@ -37,14 +37,34 @@ func NewServer(appService service.Service, settings *utils.Settings) (*Server, e
 		return nil, fmt.Errorf("failed to load TLS config: %w", err)
 	}
 
+	// Prepare CA pool for header auth if enabled
+	var caPool *x509.CertPool
+	if settings.Auth.HeaderAuth.Enabled {
+		caPath := settings.GRPC.TLS.CAPath
+		if caPath == "" {
+			return nil, fmt.Errorf("header auth enabled but ca_path is not set")
+		}
+
+		caCertBytes, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA cert for header auth: %w", err)
+		}
+		caPool = x509.NewCertPool()
+		if !caPool.AppendCertsFromPEM(caCertBytes) {
+			return nil, fmt.Errorf("failed to parse CA cert for header auth")
+		}
+	}
+
 	// Create gRPC server with TLS and interceptors
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 		grpc.ChainUnaryInterceptor(
+			UnaryHeaderAuthInterceptor(caPool, settings, logger),
 			unaryLoggingInterceptor(logger),
 			unaryRecoveryInterceptor(logger),
 		),
 		grpc.ChainStreamInterceptor(
+			StreamHeaderAuthInterceptor(caPool, settings, logger),
 			streamLoggingInterceptor(logger),
 			streamRecoveryInterceptor(logger),
 		),

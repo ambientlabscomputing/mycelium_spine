@@ -28,6 +28,7 @@ type ClientConfig struct {
 	OrgID             string
 	ProtocolVersion   string
 	TLSConfig         *tls.Config
+	HeaderAuthConfig  *HeaderAuthCredentials // Used for mTLS over HTTP headers (e.g. Cloudflare tunnel)
 	ResumeToken       string
 	HeartbeatInterval time.Duration
 
@@ -137,6 +138,10 @@ func (c *Client) doConnect(ctx context.Context) error {
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.config.TLSConfig)))
 	} else {
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+
+	if c.config.HeaderAuthConfig != nil {
+		grpcOpts = append(grpcOpts, grpc.WithStreamInterceptor(StreamHeaderAuthInterceptor(c.config.HeaderAuthConfig)))
 	}
 
 	conn, err := grpc.NewClient(c.addr, grpcOpts...)
