@@ -310,6 +310,10 @@ func min(a, b time.Duration) time.Duration {
 // receivePump receives frames from the server until the per-connection context is cancelled.
 func (c *Client) receivePump(ctx context.Context) {
 	defer c.connWg.Done()
+	// When this pump exits due to a stream error, cancel the per-connection
+	// context so the other pumps (sendPump, heartbeatPump) also exit.
+	// This allows the supervisor to detect the disconnection and reconnect.
+	defer c.connCancel()
 
 	for {
 		c.connMu.Lock()
@@ -349,6 +353,9 @@ func (c *Client) receivePump(ctx context.Context) {
 // sendPump drains sendCh and writes frames to the server stream.
 func (c *Client) sendPump(ctx context.Context) {
 	defer c.connWg.Done()
+	// When this pump exits due to a send error, cancel the per-connection
+	// context so the other pumps also exit, allowing the supervisor to reconnect.
+	defer c.connCancel()
 
 	for {
 		select {
