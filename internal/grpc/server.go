@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -193,7 +195,12 @@ func streamLoggingInterceptor(logger *slog.Logger) grpc.StreamServerInterceptor 
 		logger.Debug("stream RPC call", "method", info.FullMethod)
 		err := handler(srv, ss)
 		if err != nil {
-			logger.Error("stream RPC error", "method", info.FullMethod, "error", err)
+			// context.Canceled and io.EOF are normal stream termination — not errors.
+			if errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) {
+				logger.Debug("stream closed", "method", info.FullMethod)
+			} else {
+				logger.Error("stream RPC error", "method", info.FullMethod, "error", err)
+			}
 		}
 		return err
 	}

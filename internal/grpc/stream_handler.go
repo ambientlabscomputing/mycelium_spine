@@ -99,6 +99,11 @@ func (h *StreamHandler) Connect(stream umsv1.SpineStream_ConnectServer) error {
 	if session == nil {
 		welcomeFrame, newSession, err := sessionSvc.HandleHello(ctx, helloFrame)
 		if err != nil {
+			if ctx.Err() != nil {
+				// Client disconnected before/during HELLO processing — not an error.
+				logger.Warn("client disconnected during HELLO processing", "error", err)
+				return ctx.Err()
+			}
 			logger.Error("failed to handle HELLO", "error", err)
 			h.sendError(stream, "SESSION_ERROR", err.Error(), false)
 			return err
