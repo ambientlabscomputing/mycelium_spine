@@ -27,6 +27,7 @@ type Settings struct {
 	GRPC struct {
 		Port int `yaml:"port"`
 		TLS  struct {
+			Enabled    bool   `yaml:"enabled"` // false = no TLS (local dev only)
 			CertPath   string `yaml:"cert_path"`
 			KeyPath    string `yaml:"key_path"`
 			CAPath     string `yaml:"ca_path"`

@@ -85,7 +85,7 @@ func main() {
 
 	logger.Info("UMS ready to accept connections",
 		"grpc_port", settings.GRPC.Port,
-		"tls_enabled", true,
+		"tls_enabled", settings.GRPC.TLS.Enabled,
 		"mtls_mode", settings.GRPC.TLS.ClientAuth)
 
 	// 8. Wait for exit signal or error

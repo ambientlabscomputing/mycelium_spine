@@ -34,9 +34,13 @@ func NewServer(appService service.Service, settings *utils.Settings) (*Server, e
 	logger := utils.Logger.With("component", "grpc_server")
 
 	// Load TLS credentials
-	tlsConfig, err := loadTLSConfig(settings)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load TLS config: %w", err)
+	var tlsConfig *tls.Config
+	if settings.GRPC.TLS.Enabled {
+		var err error
+		tlsConfig, err = loadTLSConfig(settings)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load TLS config: %w", err)
+		}
 	}
 
 	// Prepare CA pool for header auth if enabled
@@ -58,8 +62,11 @@ func NewServer(appService service.Service, settings *utils.Settings) (*Server, e
 	}
 
 	// Create gRPC server with TLS and interceptors
-	grpcServer := grpc.NewServer(
-		grpc.Creds(credentials.NewTLS(tlsConfig)),
+	var serverOpts []grpc.ServerOption
+	if tlsConfig != nil {
+		serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
+	}
+	serverOpts = append(serverOpts,
 		grpc.ChainUnaryInterceptor(
 			UnaryHeaderAuthInterceptor(caPool, settings, logger),
 			unaryLoggingInterceptor(logger),
@@ -71,6 +78,7 @@ func NewServer(appService service.Service, settings *utils.Settings) (*Server, e
 			streamRecoveryInterceptor(logger),
 		),
 	)
+	grpcServer := grpc.NewServer(serverOpts...)
 
 	// Create handlers
 	streamHandler := NewStreamHandler(appService)
