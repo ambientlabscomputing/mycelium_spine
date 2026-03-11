@@ -29,15 +29,22 @@ type Server struct {
 	logger         *slog.Logger
 }
 
-// NewServer creates a new gRPC server
-func NewServer(appService service.Service, settings *utils.Settings) (*Server, error) {
+// NewServer creates a new gRPC server.
+// An optional getCert function may be passed (e.g. bootstrap.CertManager.GetCertificate)
+// to enable zero-downtime TLS cert hot-swap. When omitted, the cert is loaded
+// from disk once at startup via settings.GRPC.TLS.CertPath / KeyPath.
+func NewServer(appService service.Service, settings *utils.Settings, getCert ...func(*tls.ClientHelloInfo) (*tls.Certificate, error)) (*Server, error) {
 	logger := utils.Logger.With("component", "grpc_server")
 
 	// Load TLS credentials
 	var tlsConfig *tls.Config
 	if settings.GRPC.TLS.Enabled {
+		var certGetter func(*tls.ClientHelloInfo) (*tls.Certificate, error)
+		if len(getCert) > 0 {
+			certGetter = getCert[0]
+		}
 		var err error
-		tlsConfig, err = loadTLSConfig(settings)
+		tlsConfig, err = loadTLSConfig(settings, certGetter)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load TLS config: %w", err)
 		}
@@ -136,17 +143,24 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 }
 
-// loadTLSConfig loads TLS configuration from settings
-func loadTLSConfig(settings *utils.Settings) (*tls.Config, error) {
-	// Load server certificate and key
-	cert, err := tls.LoadX509KeyPair(settings.GRPC.TLS.CertPath, settings.GRPC.TLS.KeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load server certificate: %w", err)
+// loadTLSConfig builds a tls.Config from settings.
+// If getCert is non-nil it is set as GetCertificate, enabling hot-swap; otherwise
+// the cert is loaded once from disk via CertPath/KeyPath.
+func loadTLSConfig(settings *utils.Settings, getCert func(*tls.ClientHelloInfo) (*tls.Certificate, error)) (*tls.Config, error) {
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
 	}
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
+	if getCert != nil {
+		// Dynamic cert provider — supports zero-downtime renewal.
+		tlsConfig.GetCertificate = getCert
+	} else {
+		// Static: load cert from disk once at startup.
+		cert, err := tls.LoadX509KeyPair(settings.GRPC.TLS.CertPath, settings.GRPC.TLS.KeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load server certificate: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
 	// Configure client authentication (mTLS)

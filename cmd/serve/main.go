@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/bootstrap"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/grpc"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/service"
@@ -65,8 +66,25 @@ func main() {
 	}
 	logger.Info("application service started")
 
+	// 5b. Bootstrap TLS cert if configured.
+	// When settings.Bootstrap.CertCN is set and TLS is enabled, Spine fetches its
+	// own cert from server_api on startup (and renews it proactively in the background).
+	// When CertCN is empty, Spine uses pre-staged disk certs (local dev / manual setup).
+	var certMgr *bootstrap.CertManager
+	if settings.GRPC.TLS.Enabled && settings.Bootstrap.CertCN != "" {
+		logger.Info("cert bootstrap enabled", "cert_cn", settings.Bootstrap.CertCN)
+		certMgr = runBootstrap(ctx, settings, logger)
+	} else if settings.Bootstrap.CertCN != "" && !settings.GRPC.TLS.Enabled {
+		logger.Warn("bootstrap.cert_cn is set but grpc.tls.enabled is false — bootstrap skipped")
+	}
+
 	// 6. Initialize gRPC server
-	grpcServer, err := grpc.NewServer(appService, settings)
+	var grpcServer *grpc.Server
+	if certMgr != nil {
+		grpcServer, err = grpc.NewServer(appService, settings, certMgr.GetCertificate)
+	} else {
+		grpcServer, err = grpc.NewServer(appService, settings)
+	}
 	if err != nil {
 		logger.Error("failed to create gRPC server", "error", err)
 		panic(err)
@@ -88,7 +106,13 @@ func main() {
 		"tls_enabled", settings.GRPC.TLS.Enabled,
 		"mtls_mode", settings.GRPC.TLS.ClientAuth)
 
-	// 8. Wait for exit signal or error
+	// 8a. Start cert renewal loop if bootstrap is active.
+	if certMgr != nil {
+		go bootstrap.RunRenewalLoop(serverCtx, settings, certMgr, logger)
+		logger.Info("cert renewal loop started", "check_interval", "24h")
+	}
+
+	// 8b. Wait for exit signal or error
 	exitChannel := make(chan os.Signal, 1)
 	signal.Notify(exitChannel, os.Interrupt, syscall.SIGTERM)
 	select {
@@ -115,6 +139,59 @@ func main() {
 		logger.Error("error disconnecting MongoDB", "error", err)
 	}
 	logger.Info("UMS shutdown complete")
+}
+
+// runBootstrap fetches the CA cert and ensures the spine TLS cert is valid,
+// retrying with exponential backoff (5 attempts, 2s initial). Exits the process
+// if all attempts fail — the cert is required for the gRPC server to start.
+func runBootstrap(ctx context.Context, settings *utils.Settings, logger *slog.Logger) *bootstrap.CertManager {
+	const maxAttempts = 5
+
+	// Step 1: Fetch CA cert from server_api (public endpoint, no auth).
+	backoff := 2 * time.Second
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if err := bootstrap.EnsureCACert(ctx, settings); err == nil {
+			break
+		} else {
+			logger.Error("CA cert fetch failed", "attempt", attempt, "max", maxAttempts, "backoff", backoff, "error", err)
+			if attempt == maxAttempts {
+				logger.Error("CA cert bootstrap failed after all attempts")
+				os.Exit(1)
+			}
+			select {
+			case <-ctx.Done():
+				logger.Error("context cancelled during CA cert bootstrap")
+				os.Exit(1)
+			case <-time.After(backoff):
+			}
+			backoff *= 2
+		}
+	}
+	logger.Info("CA cert fetched from server_api")
+
+	// Step 2: Ensure our own TLS cert (CSR flow if absent or expiring).
+	backoff = 2 * time.Second
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		cert, err := bootstrap.EnsureCert(ctx, settings)
+		if err == nil {
+			logger.Info("TLS cert bootstrapped", "cert_cn", settings.Bootstrap.CertCN)
+			return bootstrap.NewCertManager(cert)
+		}
+		logger.Error("spine cert bootstrap failed", "attempt", attempt, "max", maxAttempts, "backoff", backoff, "error", err)
+		if attempt == maxAttempts {
+			logger.Error("spine cert bootstrap failed after all attempts")
+			os.Exit(1)
+		}
+		select {
+		case <-ctx.Done():
+			logger.Error("context cancelled during cert bootstrap")
+			os.Exit(1)
+		case <-time.After(backoff):
+		}
+		backoff *= 2
+	}
+	// Unreachable — os.Exit above.
+	return nil
 }
 
 // buildMongoClient creates a MongoDB client with connection pooling and auth.

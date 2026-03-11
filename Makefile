@@ -102,16 +102,52 @@ clean:
 	@echo "Clean complete"
 
 # Docker
+#
+# Set MULTIARCH=true to build for linux/amd64 + linux/arm64 via buildx.
+# Example: make docker-push MULTIARCH=true
+MULTIARCH ?= false
+BUILDX_BUILDER ?= underleaf-builder
+
+.PHONY: _ensure-builder
+_ensure-builder:
+	@if [ "$(MULTIARCH)" = "true" ]; then \
+		if ! docker buildx inspect $(BUILDX_BUILDER) > /dev/null 2>&1; then \
+			echo "  → creating buildx builder '$(BUILDX_BUILDER)' (docker-container driver)..."; \
+			docker buildx create --name $(BUILDX_BUILDER) --driver docker-container --use; \
+		else \
+			docker buildx use $(BUILDX_BUILDER); \
+		fi; \
+	fi
+
 .PHONY: docker-build
-docker-build:
+docker-build: _ensure-builder
 	@echo "Building Docker image..."
-	docker build -t ambientlabsjose/mycelium_spine:develop .
+	@if [ "$(MULTIARCH)" = "true" ]; then \
+		echo "  → multi-arch build (linux/amd64, linux/arm64)"; \
+		docker buildx build \
+			--platform linux/amd64,linux/arm64 \
+			-t ambientlabsjose/mycelium_spine:develop \
+			--load=false \
+			.; \
+	else \
+		docker build -t ambientlabsjose/mycelium_spine:develop .; \
+	fi
 	@echo "Docker image built: ambientlabsjose/mycelium_spine:develop"
 
 .PHONY: docker-push
-docker-push: docker-build
+docker-push: _ensure-builder
 	@echo "Pushing Docker image to registry..."
-	docker push ambientlabsjose/mycelium_spine:develop
+	@if [ "$(MULTIARCH)" = "true" ]; then \
+		echo "  → multi-arch push (linux/amd64, linux/arm64)"; \
+		docker buildx build \
+			--platform linux/amd64,linux/arm64 \
+			-t ambientlabsjose/mycelium_spine:develop \
+			--push \
+			.; \
+	else \
+		docker build -t ambientlabsjose/mycelium_spine:develop . && \
+		docker push ambientlabsjose/mycelium_spine:develop; \
+	fi
 	@echo "Docker image pushed: ambientlabsjose/mycelium_spine:develop"
 
 .PHONY: docker-run

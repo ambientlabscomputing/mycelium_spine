@@ -102,6 +102,26 @@ type Settings struct {
 			TimestampSkewSeconds int  `yaml:"timestamp_skew_seconds"`
 		} `yaml:"header_auth"`
 	} `yaml:"auth"`
+
+	// ServerAPI describes the upstream server_api instance used for cert operations.
+	ServerAPI struct {
+		BaseURL string `yaml:"base_url"` // e.g. "https://api.underleafdev.com/api/v1/servers"
+	} `yaml:"server_api"`
+
+	// Bootstrap controls automatic TLS certificate provisioning via server_api.
+	// When CertCN is non-empty and GRPC.TLS.Enabled is true, Spine fetches its
+	// own TLS cert from server_api on startup using an M2M token, and renews it
+	// before expiry. Leave CertCN empty to use pre-staged disk certs.
+	Bootstrap struct {
+		CertCN          string `yaml:"cert_cn"`           // CN for the spine cert, e.g. "spine.dev"
+		RenewBeforeDays int    `yaml:"renew_before_days"` // Renew if expiry < N days away (default: 7)
+		M2M             struct {
+			ClientID     string       `yaml:"client_id"`
+			ClientSecret SecretString `yaml:"client_secret"`
+			TokenURL     string       `yaml:"token_url"`
+			Audience     string       `yaml:"audience"`
+		} `yaml:"m2m"`
+	} `yaml:"bootstrap"`
 }
 
 var Defaults = map[string]interface{}{
