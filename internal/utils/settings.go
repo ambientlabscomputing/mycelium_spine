@@ -113,11 +113,14 @@ type Settings struct {
 	// own TLS cert from server_api on startup using an M2M token, and renews it
 	// before expiry. Leave CertCN empty to use pre-staged disk certs.
 	Bootstrap struct {
-		CertCN          string `yaml:"cert_cn"`           // CN for the spine cert, e.g. "spine.dev"
-		RenewBeforeDays int    `yaml:"renew_before_days"` // Renew if expiry < N days away (default: 7)
+		CertCN          string   `yaml:"cert_cn"`           // CN for the spine cert, e.g. "spine.dev"
+		CertDNSNames    []string `yaml:"cert_dns_names"`    // SAN DNS names (e.g. ["ubuntu.orb.local", "localhost"])
+		RenewBeforeDays int      `yaml:"renew_before_days"` // Renew if expiry < N days away (default: 7)
 		M2M             struct {
 			ClientID     string       `yaml:"client_id"`
-			ClientSecret SecretString `yaml:"client_secret"`
+			ClientSecret SecretString `yaml:"client_secret"` // for client_credentials grant
+			Username     string       `yaml:"username"`      // for password grant
+			Password     SecretString `yaml:"password"`      // for password grant
 			TokenURL     string       `yaml:"token_url"`
 			Audience     string       `yaml:"audience"`
 		} `yaml:"m2m"`

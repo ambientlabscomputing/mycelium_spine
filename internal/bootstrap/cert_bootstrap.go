@@ -111,11 +111,12 @@ func EnsureCert(ctx context.Context, settings *utils.Settings) (tls.Certificate,
 		renewBefore = DefaultRenewBeforeDays * 24 * time.Hour
 	}
 
-	// Check if the on-disk cert is present and not expiring soon.
+	// Check if the on-disk cert is present, signed by the current CA, and
+	// not expiring soon.
 	if _, err := os.Stat(certPath); err == nil {
 		if cert, err := tls.LoadX509KeyPair(certPath, keyPath); err == nil {
 			if x509Cert, err := x509.ParseCertificate(cert.Certificate[0]); err == nil {
-				if time.Until(x509Cert.NotAfter) > renewBefore {
+				if time.Until(x509Cert.NotAfter) > renewBefore && verifyCertAgainstCA(x509Cert, settings.GRPC.TLS.CAPath) {
 					return cert, nil
 				}
 			}
@@ -135,7 +136,15 @@ func EnsureCert(ctx context.Context, settings *utils.Settings) (tls.Certificate,
 		return tls.Certificate{}, fmt.Errorf("generate ECDSA key: %w", err)
 	}
 
-	csrPEM, err := generateCSR(privKey, certCN)
+	// Build DNS SANs: always include the CN; append any extras from config.
+	dnsNames := []string{certCN}
+	for _, name := range settings.Bootstrap.CertDNSNames {
+		if name != certCN {
+			dnsNames = append(dnsNames, name)
+		}
+	}
+
+	csrPEM, err := generateCSR(privKey, certCN, dnsNames)
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("generate CSR: %w", err)
 	}
@@ -176,10 +185,18 @@ type m2mTokenResponse struct {
 func fetchM2MToken(ctx context.Context, settings *utils.Settings) (string, error) {
 	m2m := settings.Bootstrap.M2M
 	form := url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {m2m.ClientID},
-		"client_secret": {string(m2m.ClientSecret)},
-		"audience":      {m2m.Audience},
+		"client_id": {m2m.ClientID},
+		"audience":  {m2m.Audience},
+	}
+	if m2m.Username != "" {
+		// Resource owner password grant (Auth0 dev setup)
+		form.Set("grant_type", "password")
+		form.Set("username", m2m.Username)
+		form.Set("password", string(m2m.Password))
+	} else {
+		// Client credentials grant (production M2M apps)
+		form.Set("grant_type", "client_credentials")
+		form.Set("client_secret", string(m2m.ClientSecret))
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m2m.TokenURL,
@@ -207,12 +224,13 @@ func fetchM2MToken(ctx context.Context, settings *utils.Settings) (string, error
 	return tokenResp.AccessToken, nil
 }
 
-func generateCSR(key *ecdsa.PrivateKey, cn string) ([]byte, error) {
+func generateCSR(key *ecdsa.PrivateKey, cn string, dnsNames []string) ([]byte, error) {
 	template := &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Organization: []string{"Underleaf"},
 			CommonName:   cn,
 		},
+		DNSNames: dnsNames,
 	}
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, template, key)
 	if err != nil {
@@ -266,4 +284,21 @@ func signServiceCSR(ctx context.Context, settings *utils.Settings, token, servic
 		return nil, fmt.Errorf("decode CSR response: %w", err)
 	}
 	return []byte(csrResp.CertificatePEM), nil
+}
+
+// verifyCertAgainstCA checks that cert was signed by the CA at caPath.
+func verifyCertAgainstCA(cert *x509.Certificate, caPath string) bool {
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		return false
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(caPEM) {
+		return false
+	}
+	_, err = cert.Verify(x509.VerifyOptions{
+		Roots:     roots,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	})
+	return err == nil
 }
