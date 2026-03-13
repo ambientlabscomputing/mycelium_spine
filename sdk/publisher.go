@@ -6,11 +6,13 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"time"
 
 	umsv1 "github.com/ambientlabscomputing/mycelium_spine/proto/ums/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
 // Publisher is a client for publishing envelopes via SpinePublish service
@@ -83,6 +85,12 @@ func NewPublisher(addr string, opts ...PublisherOption) (*Publisher, error) {
 	if options.headerAuth != nil {
 		grpcOpts = append(grpcOpts, grpc.WithUnaryInterceptor(UnaryHeaderAuthInterceptor(options.headerAuth)))
 	}
+
+	grpcOpts = append(grpcOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                30 * time.Second,
+		Timeout:             10 * time.Second,
+		PermitWithoutStream: true,
+	}))
 
 	conn, err := grpc.NewClient(addr, grpcOpts...)
 	if err != nil {

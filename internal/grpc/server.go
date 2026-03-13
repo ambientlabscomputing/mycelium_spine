@@ -10,12 +10,14 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"time"
 
 	"github.com/ambientlabscomputing/mycelium_spine/internal/service"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/utils"
 	umsv1 "github.com/ambientlabscomputing/mycelium_spine/proto/ums/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -85,7 +87,16 @@ func NewServer(appService service.Service, settings *utils.Settings, getCert ...
 			streamRecoveryInterceptor(logger),
 		),
 	)
-	grpcServer := grpc.NewServer(serverOpts...)
+	grpcServer := grpc.NewServer(append(serverOpts,
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             20 * time.Second,
+			PermitWithoutStream: true,
+		}),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			Time:    30 * time.Second,
+			Timeout: 10 * time.Second,
+		}),
+	)...)
 
 	// Create handlers
 	streamHandler := NewStreamHandler(appService)

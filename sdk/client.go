@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
 // Errors
@@ -143,6 +144,14 @@ func (c *Client) doConnect(ctx context.Context) error {
 	if c.config.HeaderAuthConfig != nil {
 		grpcOpts = append(grpcOpts, grpc.WithStreamInterceptor(StreamHeaderAuthInterceptor(c.config.HeaderAuthConfig)))
 	}
+
+	// Enable gRPC keepalive so idle connections detect a dead Spine server
+	// (e.g. after Spine restarts behind an nginx TCP proxy).
+	grpcOpts = append(grpcOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                30 * time.Second, // ping every 30s when idle
+		Timeout:             10 * time.Second, // wait 10s for ping ack
+		PermitWithoutStream: true,
+	}))
 
 	conn, err := grpc.NewClient(c.addr, grpcOpts...)
 	if err != nil {
