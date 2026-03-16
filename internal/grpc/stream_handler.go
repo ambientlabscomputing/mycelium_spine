@@ -165,12 +165,28 @@ func (h *StreamHandler) Connect(stream umsv1.SpineStream_ConnectServer) error {
 func (h *StreamHandler) handleClientFrame(ctx context.Context, session *types.Session, frame *umsv1.ClientFrame) error {
 	switch f := frame.Frame.(type) {
 	case *umsv1.ClientFrame_Ack:
-		return h.appService.GetAckService().HandleCumulativeAck(
+		prevSeq, err := h.appService.GetAckService().HandleCumulativeAck(
 			ctx,
 			session.ServerID,
 			f.Ack.MailboxId,
 			f.Ack.SeqAcked,
 		)
+		if err != nil {
+			return err
+		}
+
+		// Decrement inflight counters for the ACKed envelopes so the
+		// QoS flow-control in the delivery loop stops blocking.
+		if f.Ack.SeqAcked > prevSeq {
+			ackedCount := int(f.Ack.SeqAcked - prevSeq)
+			session.DecrementInflight(types.QoSCommand, ackedCount)
+			session.DecrementInflight(types.QoSControl, ackedCount)
+			session.DecrementInflight(types.QoSTelemetry, ackedCount)
+		}
+
+		// Kick delivery loops so newly-unblocked envelopes ship immediately.
+		h.appService.GetDeliveryService().NotifyDeliveryLoops()
+		return nil
 
 	case *umsv1.ClientFrame_AckSet:
 		return h.appService.GetAckService().HandleSelectiveAck(

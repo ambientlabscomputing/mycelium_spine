@@ -168,9 +168,9 @@ type MockAckService struct {
 	mock.Mock
 }
 
-func (m *MockAckService) HandleCumulativeAck(ctx context.Context, sessionID string, mailboxID string, seqAcked uint64) error {
+func (m *MockAckService) HandleCumulativeAck(ctx context.Context, sessionID string, mailboxID string, seqAcked uint64) (uint64, error) {
 	args := m.Called(ctx, sessionID, mailboxID, seqAcked)
-	return args.Error(0)
+	return args.Get(0).(uint64), args.Error(1)
 }
 
 func (m *MockAckService) HandleSelectiveAck(ctx context.Context, sessionID string, mailboxID string, seqs []uint64) error {
@@ -563,7 +563,7 @@ func TestStreamHandler_AckFrame_Cumulative(t *testing.T) {
 
 	session := setupMockSession(t, ts)
 
-	ts.mockAck.On("HandleCumulativeAck", mock.Anything, session.SessionID, "mailbox-1", uint64(42)).Return(nil)
+	ts.mockAck.On("HandleCumulativeAck", mock.Anything, session.ServerID, "mailbox-1", uint64(42)).Return(uint64(0), nil)
 
 	// Create client and stream
 	client := ts.createTestClient(ctx, t)
@@ -806,8 +806,8 @@ func TestStreamHandler_BidirectionalStreaming(t *testing.T) {
 	session := setupMockSession(t, ts)
 
 	// Setup expectations for multiple operations
-	ts.mockAck.On("HandleCumulativeAck", mock.Anything, session.SessionID, "mailbox-1", uint64(10)).Return(nil)
-	ts.mockAck.On("HandleCumulativeAck", mock.Anything, session.SessionID, "mailbox-1", uint64(20)).Return(nil)
+	ts.mockAck.On("HandleCumulativeAck", mock.Anything, session.ServerID, "mailbox-1", uint64(10)).Return(uint64(0), nil)
+	ts.mockAck.On("HandleCumulativeAck", mock.Anything, session.ServerID, "mailbox-1", uint64(20)).Return(uint64(10), nil)
 	ts.mockSess.On("HandleHeartbeat", mock.Anything, session.SessionID).Return(nil).Times(2)
 
 	// Create client and stream
@@ -926,12 +926,18 @@ func setupMockSession(t *testing.T, ts *testServer) *types.Session {
 		ServerID:     "server-001",
 		OrgID:        "org-001",
 		SessionEpoch: 1,
+		InflightByQoS: map[types.QoS]int{
+			types.QoSCommand:   0,
+			types.QoSControl:   0,
+			types.QoSTelemetry: 0,
+		},
 	}
 
 	ts.mockSess.On("HandleHello", mock.Anything, mock.Anything).Return(welcomeFrame, session, nil)
 	ts.mockSess.On("RegisterSession", mock.Anything, mock.Anything).Return(nil)
 	ts.mockDel.On("StartDeliveryLoop", mock.Anything, mock.Anything).Return(nil)
 	ts.mockDel.On("StopDeliveryLoop", mock.Anything, session.SessionID).Return(nil)
+	ts.mockDel.On("NotifyDeliveryLoops").Return().Maybe()
 	ts.mockSess.On("UnregisterSession", mock.Anything, session.SessionID).Return(nil)
 
 	return session

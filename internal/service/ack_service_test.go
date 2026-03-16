@@ -28,7 +28,7 @@ func TestHandleCumulativeAck_Success(t *testing.T) {
 	svc := NewAckService(mockRepo, testMetrics)
 
 	ctx := context.Background()
-	err := svc.HandleCumulativeAck(ctx, serverID, mailboxID, seqAcked)
+	_, err := svc.HandleCumulativeAck(ctx, serverID, mailboxID, seqAcked)
 
 	require.NoError(t, err)
 	assert.True(t, ackCalled)
@@ -45,7 +45,7 @@ func TestHandleCumulativeAck_RepositoryError(t *testing.T) {
 	svc := NewAckService(mockRepo, testMetrics)
 
 	ctx := context.Background()
-	err := svc.HandleCumulativeAck(ctx, "session-1", "mailbox-1", 50)
+	_, err := svc.HandleCumulativeAck(ctx, "session-1", "mailbox-1", 50)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to update ack position")
@@ -111,7 +111,7 @@ func TestHandleCumulativeAck_TableDriven(t *testing.T) {
 			svc := NewAckService(mockRepo, testMetrics)
 
 			ctx := context.Background()
-			err := svc.HandleCumulativeAck(ctx, tt.sessionID, tt.mailboxID, tt.seqAcked)
+			_, err := svc.HandleCumulativeAck(ctx, tt.sessionID, tt.mailboxID, tt.seqAcked)
 
 			if tt.wantError {
 				require.Error(t, err)
