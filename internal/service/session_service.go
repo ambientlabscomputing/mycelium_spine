@@ -40,7 +40,9 @@ func (s *sessionServiceImpl) HandleHello(ctx context.Context, hello *umsv1.Hello
 	logger := s.logger.With("server_id", hello.ServerId, "org_id", hello.OrgId)
 	logger.Info("processing HELLO frame")
 
-	// Check if there's an existing session for this server_id
+	// Check if there's an existing persisted session for this server_id.
+	// We also reconcile any live in-memory session below because an older
+	// delivery loop can remain active until the transport fully tears down.
 	existingSession, err := s.repo.GetSessionByServerID(ctx, hello.ServerId)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to check existing session: %w", err)
@@ -48,13 +50,16 @@ func (s *sessionServiceImpl) HandleHello(ctx context.Context, hello *umsv1.Hello
 
 	var epoch uint64 = 1
 	if existingSession != nil {
-		// Enforce max_sessions_per_server_id policy (kick old session)
-		if s.settings.Session.MaxSessionsPerServerID == 1 {
-			logger.Info("kicking existing session", "old_session_id", existingSession.SessionID)
-			s.UnregisterSession(ctx, existingSession.SessionID)
-			s.repo.DeleteSession(ctx, existingSession.SessionID)
-		}
 		epoch = existingSession.SessionEpoch + 1
+	}
+	if liveSession := s.getLiveSessionByServerID(hello.ServerId); liveSession != nil && liveSession.SessionEpoch >= epoch {
+		epoch = liveSession.SessionEpoch + 1
+	}
+
+	if s.settings.Session.MaxSessionsPerServerID == 1 {
+		if err := s.kickConflictingSessions(ctx, hello.ServerId, "", logger); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Convert client features from proto map to Go map
@@ -122,6 +127,11 @@ func (s *sessionServiceImpl) HandleResume(ctx context.Context, resumeToken strin
 	}
 
 	logger = logger.With("session_id", session.SessionID, "server_id", session.ServerID)
+	if s.settings.Session.MaxSessionsPerServerID == 1 {
+		if err := s.kickConflictingSessions(ctx, session.ServerID, session.SessionID, logger); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	// Advance session epoch for this resume
 	oldEpoch := session.SessionEpoch
@@ -158,6 +168,68 @@ func (s *sessionServiceImpl) HandleResume(ctx context.Context, resumeToken strin
 
 	logger.Info("session resume successful", "ack_positions_count", len(ackPositions))
 	return resumeOk, session, nil
+}
+
+func (s *sessionServiceImpl) getLiveSessionByServerID(serverID string) *types.Session {
+	if live, ok := s.sessions.Load(serverID); ok {
+		return live.(*types.Session)
+	}
+	return nil
+}
+
+func (s *sessionServiceImpl) kickConflictingSessions(ctx context.Context, serverID, keepSessionID string, logger *slog.Logger) error {
+	kicked := make(map[string]struct{})
+	kickIfNeeded := func(session *types.Session, source string) error {
+		if session == nil || session.SessionID == keepSessionID {
+			return nil
+		}
+		if _, alreadyKicked := kicked[session.SessionID]; alreadyKicked {
+			return nil
+		}
+		if err := s.kickSession(ctx, session, logger, source); err != nil {
+			return err
+		}
+		kicked[session.SessionID] = struct{}{}
+		return nil
+	}
+
+	if liveSession := s.getLiveSessionByServerID(serverID); liveSession != nil && liveSession.SessionID != keepSessionID {
+		if err := kickIfNeeded(liveSession, "live"); err != nil {
+			return err
+		}
+	}
+
+	persistedSession, err := s.repo.GetSessionByServerID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("failed to check latest session for server %s: %w", serverID, err)
+	}
+	if persistedSession != nil && persistedSession.SessionID != keepSessionID {
+		if err := kickIfNeeded(persistedSession, "persisted"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *sessionServiceImpl) kickSession(ctx context.Context, session *types.Session, logger *slog.Logger, source string) error {
+	if session == nil {
+		return nil
+	}
+
+	logger.Info("kicking conflicting session", "old_session_id", session.SessionID, "source", source)
+	if s.appSvc != nil && s.appSvc.GetDeliveryService() != nil {
+		if err := s.appSvc.GetDeliveryService().StopDeliveryLoop(ctx, session.SessionID); err != nil {
+			return fmt.Errorf("failed to stop delivery loop for session %s: %w", session.SessionID, err)
+		}
+	}
+	if err := s.UnregisterSession(ctx, session.SessionID); err != nil {
+		return fmt.Errorf("failed to unregister session %s: %w", session.SessionID, err)
+	}
+	if err := s.repo.DeleteSession(ctx, session.SessionID); err != nil {
+		return fmt.Errorf("failed to delete session %s: %w", session.SessionID, err)
+	}
+	return nil
 }
 
 // HandleHeartbeat updates the last heartbeat timestamp

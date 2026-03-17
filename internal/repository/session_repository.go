@@ -116,9 +116,11 @@ func (r *MongoSessionRepository) UpdateAckPosition(ctx context.Context, serverID
 	}
 
 	update := bson.M{
-		"$set": bson.M{
+		"$max": bson.M{
 			"last_acked_seq": seq,
-			"updated_at":     time.Now().Format(time.RFC3339),
+		},
+		"$set": bson.M{
+			"updated_at": time.Now().Format(time.RFC3339),
 		},
 		"$setOnInsert": bson.M{
 			"server_id":  serverID,

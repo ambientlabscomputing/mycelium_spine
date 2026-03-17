@@ -83,6 +83,12 @@ func (s *deliveryServiceImpl) deliveryLoop(ctx context.Context, session *types.S
 		logger.Info("delivery loop stopped")
 	}()
 
+	// Track the highest seq delivered per mailbox so we never re-deliver
+	// envelopes that are in-flight (sent but not yet ACKed). Without this,
+	// the delivery loop can outrun the ACK round-trip and flood the agent
+	// with duplicates, which also inflates inflight counters permanently.
+	deliveredUpTo := make(map[string]uint64) // mailboxID → highest seq delivered
+
 	// PHASE 2: Use notification channel pattern for immediate delivery
 	// Wait for either: context cancellation, notification signal, or periodic timeout
 	pollTicker := time.NewTicker(500 * time.Millisecond) // Fallback polling in case signal is missed
@@ -105,13 +111,13 @@ func (s *deliveryServiceImpl) deliveryLoop(ctx context.Context, session *types.S
 
 		// Poll each subscribed mailbox
 		for _, mailboxID := range session.Subscriptions {
-			s.deliverFromMailbox(ctx, session, mailboxID)
+			s.deliverFromMailbox(ctx, session, mailboxID, deliveredUpTo)
 		}
 	}
 }
 
 // deliverFromMailbox fetches and delivers envelopes from a single mailbox
-func (s *deliveryServiceImpl) deliverFromMailbox(ctx context.Context, session *types.Session, mailboxID string) {
+func (s *deliveryServiceImpl) deliverFromMailbox(ctx context.Context, session *types.Session, mailboxID string, deliveredUpTo map[string]uint64) {
 	logger := s.logger.With("session_id", session.SessionID, "mailbox_id", mailboxID)
 
 	// Get current ack position (keyed by server_id so it survives session restarts)
@@ -123,6 +129,14 @@ func (s *deliveryServiceImpl) deliverFromMailbox(ctx context.Context, session *t
 
 	lastAckedSeq := ackPositions[mailboxID]
 
+	// Use the higher of lastAckedSeq and deliveredUpTo to avoid re-delivering
+	// envelopes that are already in-flight (sent but not yet ACKed). When an
+	// ACK arrives, lastAckedSeq advances and becomes the dominant cursor.
+	startSeq := lastAckedSeq
+	if dut := deliveredUpTo[mailboxID]; dut > startSeq {
+		startSeq = dut
+	}
+
 	// Check flow control limits
 	totalInflight := session.GetTotalInflight()
 	if totalInflight >= s.settings.FlowControl.MaxInflightTotal {
@@ -132,13 +146,13 @@ func (s *deliveryServiceImpl) deliverFromMailbox(ctx context.Context, session *t
 		return
 	}
 
-	// Fetch envelopes from mailbox (starting at lastAckedSeq + 1)
+	// Fetch envelopes from mailbox (starting AFTER the highest cursor)
 	limit := s.settings.FlowControl.MaxInflightTotal - totalInflight
 	if limit > 100 {
 		limit = 100 // Batch limit
 	}
 
-	envelopes, err := s.repo.FetchEnvelopes(ctx, mailboxID, lastAckedSeq+1, limit)
+	envelopes, err := s.repo.FetchEnvelopes(ctx, mailboxID, startSeq+1, limit)
 	if err != nil {
 		logger.Error("failed to fetch envelopes", "error", err)
 		return
@@ -153,6 +167,15 @@ func (s *deliveryServiceImpl) deliverFromMailbox(ctx context.Context, session *t
 	// Deliver envelopes to session
 	if err := s.DeliverToSession(ctx, session, envelopes); err != nil {
 		logger.Error("failed to deliver envelopes", "error", err)
+		return
+	}
+
+	// Advance the delivered-up-to cursor to the highest seq in this batch.
+	// This only moves forward, never backward.
+	for _, env := range envelopes {
+		if env.Seq > deliveredUpTo[mailboxID] {
+			deliveredUpTo[mailboxID] = env.Seq
+		}
 	}
 }
 

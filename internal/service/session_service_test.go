@@ -53,6 +53,29 @@ type MockRepository struct {
 	ResolveTargetsFunc func(ctx context.Context, targets []*types.Target) ([]string, error)
 }
 
+type mockDeliveryService struct {
+	stopCalls []string
+}
+
+func (m *mockDeliveryService) StartDeliveryLoop(ctx context.Context, session *types.Session) error {
+	return nil
+}
+
+func (m *mockDeliveryService) StopDeliveryLoop(ctx context.Context, sessionID string) error {
+	m.stopCalls = append(m.stopCalls, sessionID)
+	return nil
+}
+
+func (m *mockDeliveryService) DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) error {
+	return nil
+}
+
+func (m *mockDeliveryService) HandleBackpressure(ctx context.Context, session *types.Session, hint *umsv1.FlowHintFrame) error {
+	return nil
+}
+
+func (m *mockDeliveryService) NotifyDeliveryLoops() {}
+
 // Session methods
 func (m *MockRepository) CreateSession(ctx context.Context, session *types.Session) error {
 	if m.CreateSessionFunc != nil {
@@ -372,6 +395,55 @@ func TestHandleResume_Success(t *testing.T) {
 
 	// Ack positions should be returned
 	assert.Equal(t, ackPositions, resumeOk.LastAckedSeq)
+}
+
+func TestHandleResume_KicksConflictingSessionForServer(t *testing.T) {
+	resumedSession := types.NewSession("test-server-1", "org-123", 3, "fingerprint", nil, nil)
+	oldResumeToken := resumedSession.ResumeToken
+	conflictingSession := types.NewSession("test-server-1", "org-123", 4, "other-fingerprint", nil, nil)
+
+	var deleted []string
+	mockRepo := &MockRepository{
+		GetSessionByResumeTokenFunc: func(ctx context.Context, resumeToken string) (*types.Session, error) {
+			if resumeToken == oldResumeToken {
+				return resumedSession, nil
+			}
+			return nil, errors.New("invalid token")
+		},
+		GetSessionByServerIDFunc: func(ctx context.Context, serverID string) (*types.Session, error) {
+			return conflictingSession, nil
+		},
+		UpdateResumeTokenFunc: func(ctx context.Context, sessionID string, newToken string) error {
+			assert.Equal(t, resumedSession.SessionID, sessionID)
+			return nil
+		},
+		GetAckPositionsFunc: func(ctx context.Context, serverID string) (map[string]uint64, error) {
+			return map[string]uint64{}, nil
+		},
+		DeleteSessionFunc: func(ctx context.Context, sessionID string) error {
+			deleted = append(deleted, sessionID)
+			return nil
+		},
+	}
+
+	settings := createTestSettings()
+	delivery := &mockDeliveryService{}
+	appSvc := &AppService{deliveryService: delivery}
+	svc := NewSessionService(mockRepo, settings, appSvc, testMetrics)
+	impl := svc.(*sessionServiceImpl)
+	impl.sessions.Store(conflictingSession.ServerID, conflictingSession)
+
+	ctx := context.Background()
+	resumeOk, session, err := svc.HandleResume(ctx, oldResumeToken)
+
+	require.NoError(t, err)
+	require.NotNil(t, resumeOk)
+	require.NotNil(t, session)
+	assert.Equal(t, resumedSession.SessionID, session.SessionID)
+	assert.ElementsMatch(t, []string{conflictingSession.SessionID}, deleted)
+	assert.ElementsMatch(t, []string{conflictingSession.SessionID}, delivery.stopCalls)
+	_, stillRegistered := impl.sessions.Load(conflictingSession.ServerID)
+	assert.False(t, stillRegistered)
 }
 
 func TestHandleResume_InvalidToken(t *testing.T) {
