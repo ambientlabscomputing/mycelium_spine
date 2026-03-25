@@ -92,6 +92,11 @@ func NewPublisher(addr string, opts ...PublisherOption) (*Publisher, error) {
 		PermitWithoutStream: true,
 	}))
 
+	// WaitForReady makes RPCs block during transient connection failures
+	// instead of failing immediately, allowing gRPC's built-in reconnection
+	// (with exponential backoff) to re-establish the connection transparently.
+	grpcOpts = append(grpcOpts, grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+
 	conn, err := grpc.NewClient(addr, grpcOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial: %w", err)
