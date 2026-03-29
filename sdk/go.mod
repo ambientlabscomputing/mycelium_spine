@@ -3,7 +3,7 @@ module github.com/ambientlabscomputing/mycelium_spine/sdk
 go 1.25.5
 
 require (
-	github.com/ambientlabscomputing/mycelium_spine v1.2.0
+	github.com/ambientlabscomputing/mycelium_spine v1.2.1
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 )
