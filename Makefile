@@ -1,38 +1,23 @@
 # Underleaf Mycelium Spine (UMS) Makefile
 
+## help: Display this help message
 .PHONY: help
 help:
-	@echo "Underleaf Mycelium Spine (UMS) - Available targets:"
+	@echo "Underleaf Mycelium Spine (UMS)"
+	@echo "Available targets:"
 	@echo ""
-	@echo "Development:"
-	@echo "  proto        - Generate Go code from protobuf definitions"
-	@echo "  deps         - Download and tidy Go dependencies"
-	@echo "  build        - Build the UMS binary"
-	@echo "  run          - Run UMS locally"
-	@echo "  test         - Run all tests"
-	@echo "  lint         - Run linter"
-	@echo "  format       - Format code"
-	@echo "  clean        - Remove build artifacts"
-	@echo ""
-	@echo "SDK and CLI:"
-	@echo "  sdk-build    - Build SDK"
-	@echo "  cli-build    - Build mspinectl CLI"
-	@echo "  cli-install  - Install mspinectl globally"
-	@echo ""
-	@echo "Docker:"
-	@echo "  docker-build - Build Docker image"
-	@echo "  docker-run   - Run Docker compose stack"
-	@echo "  docker-down  - Stop Docker compose stack"
-	@echo ""
-	@echo "E2E Testing:"
-	@echo "  e2e-build    - Build E2E test containers"
-	@echo "  e2e-test     - Run E2E test suite"
-	@echo "  e2e-up       - Start E2E environment"
-	@echo "  e2e-down     - Stop E2E environment"
-	@echo "  e2e-logs     - View E2E logs"
-	@echo "  e2e-clean    - Clean E2E volumes and images"
+	@grep -E '^## ' $(firstword $(MAKEFILE_LIST)) | \
+		sed -E 's/^##[[:space:]]*//' | \
+		awk -F': ' '!seen[$$0]++ { printf "  %-14s %s\n", $$1, $$2 }'
 
-# Proto generation
+## tidy-all: Run go mod tidy for all modules
+.PHONY: tidy-all
+tidy-all:
+	@echo "Running go mod tidy for all modules..."
+	@find . -name 'go.mod' -execdir go mod tidy \;
+	@echo "go mod tidy complete for all modules"
+
+## proto: Generate Go code from protobuf definitions
 .PHONY: proto
 proto:
 	@echo "Generating Go code from protobuf definitions..."
@@ -41,7 +26,7 @@ proto:
 		proto/ums/v1/spine.proto
 	@echo "Proto code generation complete"
 
-# Dependencies
+## help: Display this help message
 .PHONY: deps
 deps:
 	@echo "Downloading Go dependencies..."
@@ -49,42 +34,42 @@ deps:
 	go mod tidy
 	@echo "Dependencies updated"
 
-# Build
+## build: Build the UMS binary
 .PHONY: build
 build: proto
 	@echo "Building UMS binary..."
 	go build -o bin/spine cmd/serve/main.go
 	@echo "Build complete: bin/spine"
 
-# Run
+## run: Run UMS locally
 .PHONY: run
 run:
 	@echo "Running UMS..."
 	export CONFIG_PATH=${PWD}/config.yaml && \
 	go run cmd/serve/main.go
 
-# Test
+## test: Run tests with race detection and coverage
 .PHONY: test
 test:
 	@echo "Running tests..."
 	go test ./... -v -race -coverprofile=coverage.out
 	@echo "Tests complete"
 
-# Test coverage
+## coverage: Generate HTML coverage report
 .PHONY: coverage
 coverage: test
 	@echo "Generating coverage report..."
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
-# Lint
+## lint: Run linter on the codebase
 .PHONY: lint
 lint:
 	@echo "Running linter..."
 	golangci-lint run ./...
 	@echo "Linting complete"
 
-# Format
+## format: Format code with gofmt and goimports
 .PHONY: format
 format:
 	@echo "Formatting code..."
@@ -92,7 +77,7 @@ format:
 	gofmt -s -w .
 	@echo "Formatting complete"
 
-# Clean
+## clean: Remove build artifacts and coverage reports
 .PHONY: clean
 clean:
 	@echo "Cleaning build artifacts..."
@@ -119,6 +104,7 @@ _ensure-builder:
 		fi; \
 	fi
 
+## docker-build: Build the Docker image (multi-arch if MULTIARCH=true)
 .PHONY: docker-build
 docker-build: _ensure-builder
 	@echo "Building Docker image..."
@@ -134,6 +120,7 @@ docker-build: _ensure-builder
 	fi
 	@echo "Docker image built: ambientlabsjose/mycelium_spine:develop"
 
+## docker-push: Push the Docker image to the registry (multi-arch if MULTIARCH=true)
 .PHONY: docker-push
 docker-push: _ensure-builder
 	@echo "Pushing Docker image to registry..."
@@ -150,12 +137,14 @@ docker-push: _ensure-builder
 	fi
 	@echo "Docker image pushed: ambientlabsjose/mycelium_spine:develop"
 
+## docker-run: Start the Docker compose stack
 .PHONY: docker-run
 docker-run:
 	@echo "Starting Docker compose stack..."
 	docker-compose up -d
 	@echo "Stack started. View logs: docker-compose logs -f"
 
+## docker-down: Stop the Docker compose stack
 .PHONY: docker-down
 docker-down:
 	@echo "Stopping Docker compose stack..."
@@ -166,21 +155,21 @@ docker-down:
 # SDK and CLI Targets
 # ============================================================================
 
-# Build SDK
+## sdk-build: Build the Go SDK
 .PHONY: sdk-build
 sdk-build:
 	@echo "Building SDK..."
 	cd sdk && go build ./...
 	@echo "SDK build complete"
 
-# Build CLI
+## cli-build: Build the mspinectl CLI tool
 .PHONY: cli-build
 cli-build:
 	@echo "Building mspinectl CLI..."
 	cd cmd/mspinectl && go build -o ../../bin/mspinectl .
 	@echo "CLI build complete: bin/mspinectl"
 
-# Install CLI globally
+## cli-install: Install mspinectl to /usr/local/bin
 .PHONY: cli-install
 cli-install: cli-build
 	@echo "Installing mspinectl..."
@@ -191,21 +180,21 @@ cli-install: cli-build
 # E2E Testing Targets
 # ============================================================================
 
-# Build E2E containers
+## e2e-build: Build the Docker images for E2E testing
 .PHONY: e2e-build
 e2e-build:
 	@echo "Building E2E test containers..."
 	docker-compose -f docker-compose.e2e.yml build
 	@echo "E2E containers built"
 
-# Run E2E test suite
+## e2e-test: Run the E2E test suite
 .PHONY: e2e-test
 e2e-test:
 	@echo "Running E2E test suite..."
 	chmod +x e2e/test.sh
 	./e2e/test.sh
 
-# Start E2E environment
+## e2e-up: Start the E2E environment
 .PHONY: e2e-up
 e2e-up:
 	@echo "Starting E2E environment..."
@@ -220,25 +209,25 @@ e2e-up:
 	@echo "  make e2e-test"
 	@echo "  docker-compose -f docker-compose.e2e.yml exec test-client-1 mspinectl subscribe --target-type server --target-id test-server-01 --auto-ack"
 
-# Stop E2E environment
+## e2e-down: Stop the E2E environment
 .PHONY: e2e-down
 e2e-down:
 	@echo "Stopping E2E environment..."
 	docker-compose -f docker-compose.e2e.yml down
 
-# View E2E logs
+## e2e-logs: Tail logs from the E2E environment
 .PHONY: e2e-logs
 e2e-logs:
 	docker-compose -f docker-compose.e2e.yml logs -f
 
-# Clean E2E environment
+## e2e-clean: Stop and remove all E2E containers, volumes, and images
 .PHONY: e2e-clean
 e2e-clean:
 	@echo "Cleaning E2E environment..."
 	docker-compose -f docker-compose.e2e.yml down -v --rmi all
 	@echo "E2E environment cleaned"
 
-# Install tools
+## install-tools: Install development tools like protoc-gen-go and golangci-lint
 .PHONY: install-tools
 install-tools:
 	@echo "Installing development tools..."

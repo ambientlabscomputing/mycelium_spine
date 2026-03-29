@@ -6,8 +6,8 @@ github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 h1:UQHMgLO+TxOEl
 github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
-github.com/ambientlabscomputing/mycelium_spine v1.2.0 h1:OuoGBmGWJpAM/xXX07ZWQMZlsAEUm9jSNEg6Pnx+d08=
-github.com/ambientlabscomputing/mycelium_spine v1.2.0/go.mod h1:KghCzDjXO5tUy1qK7q7U/JKip9LQkscdaBIqDYvaI2I=
+github.com/ambientlabscomputing/mycelium_spine v1.2.1 h1:22gnheXYliVPI+z9BGUqbku4KQAuyPDZSt90gFwT1io=
+github.com/ambientlabscomputing/mycelium_spine v1.2.1/go.mod h1:AqAFY4OV9IvTh9Rvsy9y2nGEgNJsS7ICj5Cmc7FjLtI=
 github.com/ambientlabscomputing/mycelium_spine/sdk v1.2.0 h1:RzEYZSdZU8mZUUD6mnWrrAjWYKV+UE252gAoaW2mXho=
 github.com/ambientlabscomputing/mycelium_spine/sdk v1.2.0/go.mod h1:15x1OXCqWefNC0NLolAOs75EmwpNCAvG6945D2UcacE=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
