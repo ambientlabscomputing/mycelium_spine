@@ -3,12 +3,12 @@ module github.com/ambientlabscomputing/mycelium_spine/e2e
 go 1.25.5
 
 require (
-	github.com/ambientlabscomputing/mycelium_spine v1.0.2
-	github.com/ambientlabscomputing/mycelium_spine/sdk v1.0.2
+	github.com/ambientlabscomputing/mycelium_spine v1.2.0
+	github.com/ambientlabscomputing/mycelium_spine/sdk v1.2.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	go.mongodb.org/mongo-driver v1.13.1
-	google.golang.org/grpc v1.78.0
+	google.golang.org/grpc v1.79.3
 )
 
 require (
