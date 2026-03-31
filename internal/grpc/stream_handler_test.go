@@ -136,9 +136,9 @@ func (m *MockDeliveryService) StopDeliveryLoop(ctx context.Context, sessionID st
 	return args.Error(0)
 }
 
-func (m *MockDeliveryService) DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) error {
+func (m *MockDeliveryService) DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) (int, error) {
 	args := m.Called(ctx, session, envelopes)
-	return args.Error(0)
+	return args.Int(0), args.Error(1)
 }
 
 func (m *MockDeliveryService) HandleBackpressure(ctx context.Context, session *types.Session, hint *umsv1.FlowHintFrame) error {

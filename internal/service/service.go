@@ -38,7 +38,7 @@ type SessionService interface {
 type DeliveryService interface {
 	StartDeliveryLoop(ctx context.Context, session *types.Session) error
 	StopDeliveryLoop(ctx context.Context, sessionID string) error
-	DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) error
+	DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) (int, error)
 	HandleBackpressure(ctx context.Context, session *types.Session, hint *umsv1.FlowHintFrame) error
 	NotifyDeliveryLoops() // Signal all delivery loops that new envelopes are available
 }

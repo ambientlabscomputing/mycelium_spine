@@ -241,3 +241,68 @@ func TestDeliverFromMailbox_SendFailureDoesNotAdvanceCursor(t *testing.T) {
 
 	assert.Equal(t, uint64(0), deliveredUpTo[mailboxID], "deliveredUpTo must not advance on send failure")
 }
+
+func TestDeliverToSession_SkipsEmptyFrameAfterQoSFilter(t *testing.T) {
+	// When all fetched envelopes are filtered out by per-QoS inflight limits,
+	// DeliverToSession must NOT send an empty DELIVER frame — doing so would
+	// trick the agent's liveness watchdog into thinking the stream is healthy.
+	stream := &mockStream{}
+	settings := newTestSettings()
+	settings.FlowControl.MaxInflightCommand = 1
+
+	session := types.NewSession("server-1", "org-1", 1, "fp", nil, stream)
+	// Saturate the command inflight counter so the QoS filter drops everything.
+	session.IncrementInflight(types.QoSCommand)
+
+	svc := NewDeliveryService(nil, nil, settings, testMetrics).(*deliveryServiceImpl)
+
+	envelopes := []*types.Envelope{
+		{EnvelopeID: "env-1", MailboxID: "mbox-1", Seq: 1, QoS: types.QoSCommand, Type: "cmd"},
+		{EnvelopeID: "env-2", MailboxID: "mbox-1", Seq: 2, QoS: types.QoSCommand, Type: "cmd"},
+	}
+
+	delivered, err := svc.DeliverToSession(context.Background(), session, envelopes)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, delivered, "should report 0 delivered when QoS blocks all")
+	assert.Len(t, stream.sent, 0, "must not send an empty DELIVER frame")
+}
+
+func TestDeliverFromMailbox_QoSFilterDoesNotAdvanceCursor(t *testing.T) {
+	// When envelopes exist in the mailbox but QoS inflight limits block all of
+	// them, the deliveredUpTo cursor must NOT advance. Otherwise those envelopes
+	// are permanently skipped (never retried), creating a flow-control deadlock.
+	mailboxID := "mbox-1"
+	serverID := "server-1"
+
+	repo := &MockRepository{
+		GetAckPositionsFunc: func(ctx context.Context, sid string) (map[string]uint64, error) {
+			return map[string]uint64{mailboxID: 0}, nil
+		},
+		FetchEnvelopesFunc: func(ctx context.Context, mID string, fromSeq uint64, limit int) ([]*types.Envelope, error) {
+			return []*types.Envelope{
+				{EnvelopeID: "env-1", MailboxID: mailboxID, Seq: 1, QoS: types.QoSCommand, Type: "cmd"},
+				{EnvelopeID: "env-2", MailboxID: mailboxID, Seq: 2, QoS: types.QoSCommand, Type: "cmd"},
+			}, nil
+		},
+	}
+
+	stream := &mockStream{}
+	settings := newTestSettings()
+	settings.FlowControl.MaxInflightCommand = 1
+
+	session := types.NewSession(serverID, "org-1", 1, "fp", nil, stream)
+	session.Subscriptions = []string{mailboxID}
+	// Saturate the command inflight limit.
+	session.IncrementInflight(types.QoSCommand)
+
+	svc := NewDeliveryService(repo, nil, settings, testMetrics).(*deliveryServiceImpl)
+	deliveredUpTo := make(map[string]uint64)
+
+	svc.deliverFromMailbox(context.Background(), session, mailboxID, deliveredUpTo)
+
+	assert.Equal(t, uint64(0), deliveredUpTo[mailboxID],
+		"deliveredUpTo must not advance when QoS blocks all envelopes")
+	assert.Len(t, stream.sent, 0,
+		"no DELIVER frame should be sent when QoS blocks everything")
+}

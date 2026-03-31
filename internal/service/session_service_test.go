@@ -66,8 +66,8 @@ func (m *mockDeliveryService) StopDeliveryLoop(ctx context.Context, sessionID st
 	return nil
 }
 
-func (m *mockDeliveryService) DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) error {
-	return nil
+func (m *mockDeliveryService) DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) (int, error) {
+	return len(envelopes), nil
 }
 
 func (m *mockDeliveryService) HandleBackpressure(ctx context.Context, session *types.Session, hint *umsv1.FlowHintFrame) error {

@@ -165,27 +165,33 @@ func (s *deliveryServiceImpl) deliverFromMailbox(ctx context.Context, session *t
 	logger.Debug("fetched envelopes", "count", len(envelopes))
 
 	// Deliver envelopes to session
-	if err := s.DeliverToSession(ctx, session, envelopes); err != nil {
+	delivered, err := s.DeliverToSession(ctx, session, envelopes)
+	if err != nil {
 		logger.Error("failed to deliver envelopes", "error", err)
 		return
 	}
 
-	// Advance the delivered-up-to cursor to the highest seq in this batch.
-	// This only moves forward, never backward.
-	for _, env := range envelopes {
-		if env.Seq > deliveredUpTo[mailboxID] {
-			deliveredUpTo[mailboxID] = env.Seq
+	// Only advance the delivered-up-to cursor for the envelopes that were
+	// actually sent. When QoS flow control filters out all envelopes,
+	// delivered==0 and the cursor stays put so those envelopes are retried
+	// on the next poll rather than being permanently skipped.
+	if delivered > 0 {
+		for _, env := range envelopes {
+			if env.Seq > deliveredUpTo[mailboxID] {
+				deliveredUpTo[mailboxID] = env.Seq
+			}
 		}
 	}
 }
 
-// DeliverToSession pushes envelopes through the gRPC stream
-func (s *deliveryServiceImpl) DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) error {
+// DeliverToSession pushes envelopes through the gRPC stream.
+// It returns the number of envelopes actually sent (after QoS filtering).
+func (s *deliveryServiceImpl) DeliverToSession(ctx context.Context, session *types.Session, envelopes []*types.Envelope) (int, error) {
 	logger := s.logger.With("session_id", session.SessionID, "envelope_count", len(envelopes))
 	logger.Debug("delivering envelopes to session")
 
 	if session.Stream == nil {
-		return fmt.Errorf("session has no active stream")
+		return 0, fmt.Errorf("session has no active stream")
 	}
 
 	// Group envelopes by QoS and apply flow control
@@ -260,6 +266,15 @@ func (s *deliveryServiceImpl) DeliverToSession(ctx context.Context, session *typ
 		}
 	}
 
+	// If all envelopes were filtered out by QoS limits, don't send an
+	// empty frame — it would trick the agent's liveness watchdog into
+	// thinking the stream is healthy while nothing is being delivered.
+	if len(protoEnvelopes) == 0 {
+		logger.Debug("all envelopes filtered by QoS flow control, skipping send",
+			"fetched", len(envelopes))
+		return 0, nil
+	}
+
 	// Send DELIVER frame
 	deliverFrame := &umsv1.ServerFrame{
 		Frame: &umsv1.ServerFrame_Deliver{
@@ -272,11 +287,11 @@ func (s *deliveryServiceImpl) DeliverToSession(ctx context.Context, session *typ
 
 	if err := session.Stream.SendMsg(deliverFrame); err != nil {
 		logger.Error("failed to send DELIVER frame", "error", err)
-		return fmt.Errorf("failed to send DELIVER frame: %w", err)
+		return 0, fmt.Errorf("failed to send DELIVER frame: %w", err)
 	}
 
 	logger.Info("envelopes delivered successfully", "count", len(protoEnvelopes))
-	return nil
+	return len(protoEnvelopes), nil
 }
 
 // HandleBackpressure adjusts delivery behavior based on client hints
