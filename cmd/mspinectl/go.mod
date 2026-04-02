@@ -3,7 +3,7 @@ module github.com/ambientlabscomputing/mycelium_spine/cmd/mspinectl
 go 1.25.5
 
 require (
-	github.com/ambientlabscomputing/mycelium_spine v1.2.1
+	github.com/ambientlabscomputing/mycelium_spine v1.3.0
 	github.com/ambientlabscomputing/mycelium_spine/sdk v1.2.0
 	github.com/spf13/cobra v1.8.1
 )
