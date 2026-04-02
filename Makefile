@@ -236,5 +236,12 @@ install-tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	@echo "Tools installed"
 
+## tidy-all: Run go mod tidy for all modules
+.PHONY: tidy-all
+tidy-all:
+	@echo "Running go mod tidy for all modules..."
+	@find . -name 'go.mod' -execdir go mod tidy \;
+	@echo "go mod tidy complete for all modules"
+
 # Default target
 .DEFAULT_GOAL := help
