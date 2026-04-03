@@ -78,8 +78,8 @@ func TestNewMailboxCursor(t *testing.T) {
 		t.Fatal("expected non-nil cursor")
 	}
 
-	if cursor.SessionID != sessionID {
-		t.Errorf("expected session ID %s, got %s", sessionID, cursor.SessionID)
+	if cursor.ServerID != sessionID {
+		t.Errorf("expected session ID %s, got %s", sessionID, cursor.ServerID)
 	}
 
 	if cursor.MailboxID != mailboxID {

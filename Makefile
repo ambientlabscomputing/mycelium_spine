@@ -10,12 +10,12 @@ help:
 		sed -E 's/^##[[:space:]]*//' | \
 		awk -F': ' '!seen[$$0]++ { printf "  %-14s %s\n", $$1, $$2 }'
 
-## tidy-all: Run go mod tidy for all modules
-.PHONY: tidy-all
-tidy-all:
-	@echo "Running go mod tidy for all modules..."
-	@find . -name 'go.mod' -execdir go mod tidy \;
-	@echo "go mod tidy complete for all modules"
+## tidy: Run go mod tidy
+.PHONY: tidy
+tidy:
+	@echo "Running go mod tidy..."
+	go mod tidy
+	@echo "go mod tidy complete"
 
 ## proto: Generate Go code from protobuf definitions
 .PHONY: proto
@@ -159,14 +159,14 @@ docker-down:
 .PHONY: sdk-build
 sdk-build:
 	@echo "Building SDK..."
-	cd sdk && go build ./...
+	go build ./sdk/...
 	@echo "SDK build complete"
 
 ## cli-build: Build the mspinectl CLI tool
 .PHONY: cli-build
 cli-build:
 	@echo "Building mspinectl CLI..."
-	cd cmd/mspinectl && go build -o ../../bin/mspinectl .
+	go build -o bin/mspinectl ./cmd/mspinectl
 	@echo "CLI build complete: bin/mspinectl"
 
 ## cli-install: Install mspinectl to /usr/local/bin
@@ -235,13 +235,6 @@ install-tools:
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	@echo "Tools installed"
-
-## tidy-all: Run go mod tidy for all modules
-.PHONY: tidy-all
-tidy-all:
-	@echo "Running go mod tidy for all modules..."
-	@find . -name 'go.mod' -execdir go mod tidy \;
-	@echo "go mod tidy complete for all modules"
 
 # Default target
 .DEFAULT_GOAL := help

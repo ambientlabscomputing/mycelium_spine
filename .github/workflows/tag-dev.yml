@@ -16,7 +16,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Force-tag dev and sdk/dev at current commit
+      - name: Force-tag dev at current commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -24,7 +24,3 @@ jobs:
           # Force-create the root module dev tag
           git tag --force dev
           git push origin --force refs/tags/dev
-
-          # Force-create the sdk sub-module dev tag
-          git tag --force sdk/dev
-          git push origin --force refs/tags/sdk/dev
