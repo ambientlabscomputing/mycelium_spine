@@ -9,71 +9,64 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	ackMailboxID string
-	ackSeq       uint64
-)
+func newAckCmd(f *clientFlags) *cobra.Command {
+	var (
+		mailboxID string
+		seq       uint64
+	)
 
-var ackCmd = &cobra.Command{
-	Use:   "ack",
-	Short: "Acknowledge a message",
-	Long:  `Send a cumulative acknowledgment for a message in a mailbox.`,
-	Example: `  # Acknowledge message at sequence 42
+	cmd := &cobra.Command{
+		Use:   "ack",
+		Short: "Acknowledge a message",
+		Long:  `Send a cumulative acknowledgment for a message in a mailbox.`,
+		Example: `  # Acknowledge message at sequence 42
   mspinectl ack --mailbox-id MAILBOX_ID --seq 42`,
-	RunE: runAck,
-}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkRequired("server-id", f.serverID); err != nil {
+				return err
+			}
+			if err := checkRequired("org-id", f.orgID); err != nil {
+				return err
+			}
 
-func init() {
-	rootCmd.AddCommand(ackCmd)
+			client, err := sdk.NewClient(f.serverAddr, sdk.ClientConfig{
+				ServerID:        f.serverID,
+				OrgID:           f.orgID,
+				ProtocolVersion: "1.0",
+			})
+			if err != nil {
+				return fmt.Errorf("failed to create client: %w", err)
+			}
+			defer client.Close()
 
-	ackCmd.Flags().StringVar(&ackMailboxID, "mailbox-id", "", "Mailbox ID")
-	ackCmd.Flags().Uint64Var(&ackSeq, "seq", 0, "Sequence number to acknowledge")
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if err := client.Connect(ctx); err != nil {
+				cancel()
+				return fmt.Errorf("failed to connect: %w", err)
+			}
+			cancel()
 
-	ackCmd.MarkFlagRequired("mailbox-id")
-	ackCmd.MarkFlagRequired("seq")
-}
+			if f.verbose {
+				fmt.Printf("Connected with session ID: %s\n", client.SessionID())
+			}
 
-func runAck(cmd *cobra.Command, args []string) error {
-	// Validate required flags
-	if err := checkRequired("server-id", serverID); err != nil {
-		return err
-	}
-	if err := checkRequired("org-id", orgID); err != nil {
-		return err
-	}
+			if err := client.Ack(mailboxID, seq); err != nil {
+				return fmt.Errorf("failed to send ack: %w", err)
+			}
 
-	// Create client
-	client, err := sdk.NewClient(serverAddr, sdk.ClientConfig{
-		ServerID:        serverID,
-		OrgID:           orgID,
-		ProtocolVersion: "1.0",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
-	}
-	defer client.Close()
+			fmt.Printf("Acknowledged mailbox %s up to sequence %d\n", mailboxID, seq)
 
-	// Connect
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	if err := client.Connect(ctx); err != nil {
-		cancel()
-		return fmt.Errorf("failed to connect: %w", err)
-	}
-	cancel()
+			// Give server time to process
+			time.Sleep(100 * time.Millisecond)
 
-	if verbose {
-		fmt.Printf("Connected with session ID: %s\n", client.SessionID())
+			return nil
+		},
 	}
 
-	// Send acknowledgment
-	if err := client.Ack(ackMailboxID, ackSeq); err != nil {
-		return fmt.Errorf("failed to send ack: %w", err)
-	}
+	cmd.Flags().StringVar(&mailboxID, "mailbox-id", "", "Mailbox ID")
+	cmd.Flags().Uint64Var(&seq, "seq", 0, "Sequence number to acknowledge")
+	_ = cmd.MarkFlagRequired("mailbox-id")
+	_ = cmd.MarkFlagRequired("seq")
 
-	fmt.Printf("Acknowledged mailbox %s up to sequence %d\n", ackMailboxID, ackSeq)
-
-	// Give server time to process
-	time.Sleep(100 * time.Millisecond)
-
-	return nil
+	return cmd
 }

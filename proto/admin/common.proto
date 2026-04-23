@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package spineadmin;
+
+option go_package = "github.com/ambientlabscomputing/mycelium_spine/proto/admin;admin";
+
+// Empty is used for RPCs that take no input.
+message Empty {}
+
+// Pagination holds the total count for list responses.
+message Pagination {
+  int64 total = 1;
+  int32 limit  = 2;
+  int32 offset = 3;
+}

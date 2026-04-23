@@ -125,6 +125,12 @@ type Settings struct {
 			Audience     string       `yaml:"audience"`
 		} `yaml:"m2m"`
 	} `yaml:"bootstrap"`
+
+	// AdminSocket configures the local Unix socket admin interface.
+	AdminSocket struct {
+		Enabled    bool   `yaml:"enabled"`
+		SocketPath string `yaml:"socket_path"`
+	} `yaml:"admin_socket"`
 }
 
 var Defaults = map[string]interface{}{

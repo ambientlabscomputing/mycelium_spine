@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -13,19 +14,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	subscribeTargetType string
-	subscribeTargetID   string
-	subscribeCount      int
-	subscribeAutoAck    bool
-)
+func newSubscribeCmd(f *clientFlags) *cobra.Command {
+	var (
+		targetType string
+		targetID   string
+		count      int
+		autoAck    bool
+	)
 
-var subscribeCmd = &cobra.Command{
-	Use:   "subscribe",
-	Short: "Subscribe to a mailbox and receive messages",
-	Long: `Subscribe to a target mailbox and receive delivered envelopes.
+	cmd := &cobra.Command{
+		Use:   "subscribe",
+		Short: "Subscribe to a mailbox and receive messages",
+		Long: `Subscribe to a target mailbox and receive delivered envelopes.
 Messages will be printed to stdout as they arrive.`,
-	Example: `  # Subscribe to server mailbox
+		Example: `  # Subscribe to server mailbox
   mspinectl subscribe --target-type server --target-id my-server-01
 
   # Subscribe and auto-acknowledge
@@ -33,115 +35,115 @@ Messages will be printed to stdout as they arrive.`,
 
   # Subscribe to cluster, receive 10 messages
   mspinectl subscribe --target-type cluster --target-id cluster-west --count 10`,
-	RunE: runSubscribe,
-}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkRequired("server-id", f.serverID); err != nil {
+				return err
+			}
+			if err := checkRequired("org-id", f.orgID); err != nil {
+				return err
+			}
 
-func init() {
-	rootCmd.AddCommand(subscribeCmd)
+			tt, err := parseUMSTargetType(targetType)
+			if err != nil {
+				return err
+			}
 
-	subscribeCmd.Flags().StringVar(&subscribeTargetType, "target-type", "", "Target type: server, cluster, org, service")
-	subscribeCmd.Flags().StringVar(&subscribeTargetID, "target-id", "", "Target ID")
-	subscribeCmd.Flags().IntVar(&subscribeCount, "count", 0, "Number of messages to receive (0 = infinite)")
-	subscribeCmd.Flags().BoolVar(&subscribeAutoAck, "auto-ack", false, "Automatically acknowledge messages")
+			client, err := sdk.NewClient(f.serverAddr, sdk.ClientConfig{
+				ServerID:        f.serverID,
+				OrgID:           f.orgID,
+				ProtocolVersion: "1.0",
+			})
+			if err != nil {
+				return fmt.Errorf("failed to create client: %w", err)
+			}
+			defer client.Close()
 
-	subscribeCmd.MarkFlagRequired("target-type")
-	subscribeCmd.MarkFlagRequired("target-id")
-}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if err := client.Connect(ctx); err != nil {
+				cancel()
+				return fmt.Errorf("failed to connect: %w", err)
+			}
+			cancel()
 
-func runSubscribe(cmd *cobra.Command, args []string) error {
-	// Validate required flags
-	if err := checkRequired("server-id", serverID); err != nil {
-		return err
-	}
-	if err := checkRequired("org-id", orgID); err != nil {
-		return err
-	}
+			if f.verbose {
+				fmt.Printf("Connected with session ID: %s\n", client.SessionID())
+			}
 
-	// Parse target type
-	targetType, err := parseTargetType(subscribeTargetType)
-	if err != nil {
-		return err
-	}
+			target := &umsv1.Target{
+				TargetType: tt,
+				TargetId:   targetID,
+				OrgId:      f.orgID,
+			}
 
-	// Create client
-	client, err := sdk.NewClient(serverAddr, sdk.ClientConfig{
-		ServerID:        serverID,
-		OrgID:           orgID,
-		ProtocolVersion: "1.0",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
-	}
-	defer client.Close()
+			if err := client.Subscribe([]*umsv1.Target{target}); err != nil {
+				return fmt.Errorf("failed to subscribe: %w", err)
+			}
 
-	// Connect
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	if err := client.Connect(ctx); err != nil {
-		cancel()
-		return fmt.Errorf("failed to connect: %w", err)
-	}
-	cancel()
+			fmt.Printf("Subscribed to %s: %s\n", targetType, targetID)
 
-	if verbose {
-		fmt.Printf("Connected with session ID: %s\n", client.SessionID())
-	}
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	// Subscribe
-	target := &umsv1.Target{
-		TargetType: targetType,
-		TargetId:   subscribeTargetID,
-		OrgId:      orgID,
-	}
+			messageCount := 0
+			for {
+				select {
+				case delivery := <-client.Deliveries():
+					for _, envelope := range delivery.Envelopes {
+						messageCount++
+						fmt.Printf("\n[%s] Message %d:\n", time.Now().Format(time.RFC3339), messageCount)
+						fmt.Printf("  Mailbox ID:  %s\n", envelope.MailboxId)
+						fmt.Printf("  Sequence:    %d\n", envelope.Seq)
+						fmt.Printf("  Type:        %s\n", envelope.Type)
+						fmt.Printf("  QoS:         %s\n", envelope.Qos)
+						fmt.Printf("  Payload:     %s\n", string(envelope.Payload))
 
-	if err := client.Subscribe([]*umsv1.Target{target}); err != nil {
-		return fmt.Errorf("failed to subscribe: %w", err)
-	}
+						if autoAck {
+							if err := client.Ack(envelope.MailboxId, envelope.Seq); err != nil {
+								fmt.Fprintf(os.Stderr, "Failed to ack: %v\n", err)
+							} else if f.verbose {
+								fmt.Printf("  Acknowledged\n")
+							}
+						}
 
-	fmt.Printf("Subscribed to %s: %s\n", subscribeTargetType, subscribeTargetID)
-
-	// Handle signals for graceful shutdown
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
-	messageCount := 0
-
-	// Receive messages
-	for {
-		select {
-		case delivery := <-client.Deliveries():
-			for _, envelope := range delivery.Envelopes {
-				messageCount++
-
-				// Print message
-				fmt.Printf("\n[%s] Message %d:\n", time.Now().Format(time.RFC3339), messageCount)
-				fmt.Printf("  Mailbox ID:  %s\n", envelope.MailboxId)
-				fmt.Printf("  Sequence:    %d\n", envelope.Seq)
-				fmt.Printf("  Type:        %s\n", envelope.Type)
-				fmt.Printf("  QoS:         %s\n", envelope.Qos)
-				fmt.Printf("  Payload:     %s\n", string(envelope.Payload))
-
-				// Auto-acknowledge
-				if subscribeAutoAck {
-					if err := client.Ack(envelope.MailboxId, envelope.Seq); err != nil {
-						fmt.Fprintf(os.Stderr, "Failed to ack: %v\n", err)
-					} else if verbose {
-						fmt.Printf("  Acknowledged\n")
+						if count > 0 && messageCount >= count {
+							fmt.Printf("\nReceived %d messages, exiting\n", messageCount)
+							return nil
+						}
 					}
-				}
-
-				// Check count limit
-				if subscribeCount > 0 && messageCount >= subscribeCount {
-					fmt.Printf("\nReceived %d messages, exiting\n", messageCount)
+				case err := <-client.Errors():
+					return fmt.Errorf("client error: %w", err)
+				case <-sigCh:
+					fmt.Printf("\nReceived interrupt, shutting down...\n")
 					return nil
 				}
 			}
+		},
+	}
 
-		case err := <-client.Errors():
-			return fmt.Errorf("client error: %w", err)
+	cmd.Flags().StringVar(&targetType, "target-type", "", "Target type: server, cluster, org, service")
+	cmd.Flags().StringVar(&targetID, "target-id", "", "Target ID")
+	cmd.Flags().IntVar(&count, "count", 0, "Number of messages to receive (0 = infinite)")
+	cmd.Flags().BoolVar(&autoAck, "auto-ack", false, "Automatically acknowledge messages")
+	_ = cmd.MarkFlagRequired("target-type")
+	_ = cmd.MarkFlagRequired("target-id")
 
-		case <-sigCh:
-			fmt.Printf("\nReceived interrupt, shutting down...\n")
-			return nil
-		}
+	return cmd
+}
+
+// parseUMSTargetType converts the string target type to a proto enum.
+func parseUMSTargetType(s string) (umsv1.TargetType, error) {
+	switch strings.ToUpper(s) {
+	case "SERVER":
+		return umsv1.TargetType_TARGET_TYPE_SERVER, nil
+	case "CLUSTER":
+		return umsv1.TargetType_TARGET_TYPE_CLUSTER, nil
+	case "ORG":
+		return umsv1.TargetType_TARGET_TYPE_ORG, nil
+	case "SERVICE":
+		return umsv1.TargetType_TARGET_TYPE_SERVICE, nil
+	case "BROADCAST":
+		return umsv1.TargetType_TARGET_TYPE_BROADCAST, nil
+	default:
+		return umsv1.TargetType_TARGET_TYPE_UNSPECIFIED, fmt.Errorf("unknown target type %q", s)
 	}
 }

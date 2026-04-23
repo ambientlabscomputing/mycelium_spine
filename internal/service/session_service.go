@@ -287,3 +287,13 @@ func (s *sessionServiceImpl) UnregisterSession(ctx context.Context, sessionID st
 
 	return nil
 }
+
+// ListActiveSessions returns all currently connected sessions from the in-memory registry.
+func (s *sessionServiceImpl) ListActiveSessions(_ context.Context) ([]*types.Session, error) {
+	var sessions []*types.Session
+	s.sessions.Range(func(_, value interface{}) bool {
+		sessions = append(sessions, value.(*types.Session))
+		return true
+	})
+	return sessions, nil
+}

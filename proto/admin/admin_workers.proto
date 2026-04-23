@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package spineadmin;
+
+option go_package = "github.com/ambientlabscomputing/mycelium_spine/proto/admin;admin";
+
+import "proto/admin/common.proto";
+
+service AdminWorkersService {
+  rpc GetStats(Empty) returns (WorkerStatsResponse) {}
+}
+
+message WorkerStatsResponse {
+  // Worker pool stats keyed by pool name (session, delivery, ack, mailbox).
+  map<string, PoolStats> pools = 1;
+}
+
+message PoolStats {
+  int32 active_workers  = 1;
+  int32 queue_depth     = 2;
+  int32 queue_capacity  = 3;
+  int64 tasks_processed = 4;
+  int64 task_errors     = 5;
+}

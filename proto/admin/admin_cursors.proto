@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package spineadmin;
+
+option go_package = "github.com/ambientlabscomputing/mycelium_spine/proto/admin;admin";
+
+import "proto/admin/common.proto";
+
+service AdminCursorsService {
+  rpc List(ListCursorsRequest)                     returns (ListCursorsResponse) {}
+  rpc Get(GetCursorRequest)                        returns (CursorDetail) {}
+  rpc Reset(ResetCursorRequest)                    returns (Empty) {}
+  rpc DeleteServerCursors(DeleteServerCursorsRequest) returns (DeleteServerCursorsResponse) {}
+}
+
+message ListCursorsRequest {
+  string server_id  = 1; // Optional filter
+  string mailbox_id = 2; // Optional filter
+  int32  limit      = 3; // 0 = default (50)
+  int32  offset     = 4;
+}
+
+message ListCursorsResponse {
+  repeated CursorSummary cursors = 1;
+  Pagination pagination          = 2;
+}
+
+message CursorSummary {
+  string server_id      = 1;
+  string mailbox_id     = 2;
+  uint64 last_acked_seq = 3;
+  string updated_at     = 4;
+}
+
+message GetCursorRequest {
+  string server_id  = 1;
+  string mailbox_id = 2;
+}
+
+message CursorDetail {
+  string server_id      = 1;
+  string mailbox_id     = 2;
+  uint64 last_acked_seq = 3;
+  uint64 mailbox_next_seq = 4;   // From mailbox — used to compute inflight
+  uint64 inflight_count = 5;     // mailbox_next_seq - last_acked_seq (approx)
+  string updated_at     = 6;
+}
+
+message ResetCursorRequest {
+  string server_id  = 1;
+  string mailbox_id = 2;
+  uint64 seq        = 3; // Reset last_acked_seq to this value
+}
+
+message DeleteServerCursorsRequest {
+  string server_id = 1;
+}
+
+message DeleteServerCursorsResponse {
+  int64 deleted_count = 1;
+}

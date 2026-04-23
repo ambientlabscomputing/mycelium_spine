@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package spineadmin;
+
+option go_package = "github.com/ambientlabscomputing/mycelium_spine/proto/admin;admin";
+
+import "proto/admin/common.proto";
+
+service AdminSessionsService {
+  rpc List(ListSessionsRequest)           returns (ListSessionsResponse) {}
+  rpc Get(GetSessionRequest)              returns (SessionDetail) {}
+  rpc Disconnect(DisconnectSessionRequest) returns (Empty) {}
+  rpc EvictStale(Empty)                   returns (EvictStaleResponse) {}
+}
+
+message ListSessionsRequest {
+  string org_id  = 1; // Optional filter
+  int32  limit   = 2; // 0 = default (50)
+  int32  offset  = 3;
+}
+
+message ListSessionsResponse {
+  repeated SessionSummary sessions = 1;
+  Pagination pagination            = 2;
+}
+
+message SessionSummary {
+  string server_id       = 1;
+  string session_id      = 2;
+  string org_id          = 3;
+  uint64 session_epoch   = 4;
+  int32  subscription_count = 5;
+  string connected_at    = 6;
+  string last_heartbeat  = 7;
+}
+
+message GetSessionRequest {
+  // Exactly one of session_id or server_id must be set.
+  string session_id = 1;
+  string server_id  = 2;
+}
+
+message SessionDetail {
+  string server_id          = 1;
+  string session_id         = 2;
+  string org_id             = 3;
+  uint64 session_epoch      = 4;
+  repeated string subscriptions = 5;
+  string connected_at       = 6;
+  string last_heartbeat     = 7;
+  string device_fingerprint = 8;
+  map<string, bool> client_features = 9;
+}
+
+message DisconnectSessionRequest {
+  // Exactly one of session_id or server_id must be set.
+  string session_id = 1;
+  string server_id  = 2;
+}
+
+message EvictStaleResponse {
+  int32 evicted_count = 1;
+}

@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package spineadmin;
+
+option go_package = "github.com/ambientlabscomputing/mycelium_spine/proto/admin;admin";
+
+import "proto/admin/common.proto";
+
+service AdminMailboxesService {
+  rpc List(ListMailboxesRequest)           returns (ListMailboxesResponse) {}
+  rpc Get(GetMailboxRequest)               returns (MailboxDetail) {}
+  rpc ListEnvelopes(ListEnvelopesRequest)  returns (ListEnvelopesResponse) {}
+  rpc PurgeExpired(PurgeExpiredRequest)    returns (PurgeExpiredResponse) {}
+  rpc ClearOutbox(ClearOutboxRequest)      returns (ClearOutboxResponse) {}
+}
+
+message ListMailboxesRequest {
+  string org_id      = 1; // Optional filter
+  string target_type = 2; // Optional filter: SERVER, CLUSTER, ORG, SERVICE, BROADCAST
+  int32  limit       = 3; // 0 = default (50)
+  int32  offset      = 4;
+}
+
+message ListMailboxesResponse {
+  repeated MailboxSummary mailboxes = 1;
+  Pagination pagination             = 2;
+}
+
+message MailboxSummary {
+  string mailbox_id   = 1;
+  string target_type  = 2;
+  string target_id    = 3;
+  string org_id       = 4;
+  uint64 next_seq     = 5;
+  string created_at   = 6;
+  string updated_at   = 7;
+}
+
+message GetMailboxRequest {
+  string mailbox_id = 1;
+}
+
+message MailboxDetail {
+  string mailbox_id   = 1;
+  string target_type  = 2;
+  string target_id    = 3;
+  string org_id       = 4;
+  uint64 next_seq     = 5;
+  string created_at   = 6;
+  string updated_at   = 7;
+  int32  retention_seconds    = 8;
+  int32  max_envelopes        = 9;
+  int32  max_bytes            = 10;
+}
+
+message ListEnvelopesRequest {
+  string mailbox_id = 1;
+  uint64 from_seq   = 2; // Start at this sequence (inclusive); 0 = beginning
+  int32  limit      = 3; // 0 = default (20)
+}
+
+message EnvelopeSummary {
+  string mailbox_id    = 1;
+  uint64 seq           = 2;
+  string type          = 3;
+  string qos           = 4;
+  string org_id        = 5;
+  bool   requires_ack  = 6;
+  int64  expires_at_ms = 7;
+}
+
+message ListEnvelopesResponse {
+  repeated EnvelopeSummary envelopes = 1;
+}
+
+message PurgeExpiredRequest {
+  string mailbox_id = 1;
+}
+
+message PurgeExpiredResponse {
+  int64 deleted_count = 1;
+}
+
+message ClearOutboxRequest {
+  string mailbox_id = 1;
+}
+
+message ClearOutboxResponse {
+  int64 deleted_count = 1;
+}

@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ambientlabscomputing/mycelium_spine/internal/admin_server"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/bootstrap"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/grpc"
 	"github.com/ambientlabscomputing/mycelium_spine/internal/repository"
@@ -106,6 +107,21 @@ func main() {
 		"tls_enabled", settings.GRPC.TLS.Enabled,
 		"mtls_mode", settings.GRPC.TLS.ClientAuth)
 
+	// 7b. Start admin socket server if enabled.
+	var adminSrv *admin_server.AdminServer
+	if settings.AdminSocket.Enabled {
+		socketPath := settings.AdminSocket.SocketPath
+		if socketPath == "" {
+			socketPath = "/tmp/spine_admin.sock"
+		}
+		adminSrv = admin_server.NewAdminServer(appService, repo, socketPath, "1.0.0")
+		if err := adminSrv.Start(ctx); err != nil {
+			logger.Error("failed to start admin socket server", "error", err)
+			panic(err)
+		}
+		logger.Info("admin socket server started", "socket", socketPath)
+	}
+
 	// 8a. Start cert renewal loop if bootstrap is active.
 	if certMgr != nil {
 		go bootstrap.RunRenewalLoop(serverCtx, settings, certMgr, logger)
@@ -130,6 +146,14 @@ func main() {
 	// Stop services with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
+
+	// Stop admin socket server first
+	if adminSrv != nil {
+		if err := adminSrv.Stop(shutdownCtx); err != nil {
+			logger.Error("error stopping admin socket server", "error", err)
+		}
+	}
+
 	if err := appService.Stop(shutdownCtx); err != nil {
 		logger.Error("error during service shutdown", "error", err)
 	}

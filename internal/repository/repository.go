@@ -32,6 +32,15 @@ type MailboxRepository interface {
 
 	// EnforceRetention ensures mailbox stays within retention policy limits
 	EnforceRetention(ctx context.Context, mailboxID string, policy types.RetentionPolicy) error
+
+	// ListMailboxes returns mailboxes with optional filtering and pagination.
+	ListMailboxes(ctx context.Context, orgID string, targetType string, limit, offset int) ([]*types.Mailbox, int64, error)
+
+	// ClearMailbox deletes all envelopes for a mailbox and resets next_seq to 1.
+	ClearMailbox(ctx context.Context, mailboxID string) (int64, error)
+
+	// CountMailboxes returns the total number of mailboxes.
+	CountMailboxes(ctx context.Context) (int64, error)
 }
 
 // SessionRepository handles session persistence and cursor tracking
@@ -70,6 +79,12 @@ type SessionRepository interface {
 
 	// UpdateSubscriptions persists the session's subscription list to MongoDB
 	UpdateSubscriptions(ctx context.Context, sessionID string, mailboxIDs []string) error
+
+	// ListCursors returns all ACK cursors, optionally filtered by server_id or mailbox_id.
+	ListCursors(ctx context.Context, serverID string, mailboxID string, limit, offset int) ([]*types.MailboxCursor, int64, error)
+
+	// ResetCursor sets last_acked_seq to the specified value for a (server_id, mailbox_id) cursor.
+	ResetCursor(ctx context.Context, serverID string, mailboxID string, seq uint64) error
 }
 
 // TargetResolver resolves targets to mailbox IDs

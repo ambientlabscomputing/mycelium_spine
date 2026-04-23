@@ -220,3 +220,66 @@ func (r *MongoSessionRepository) UpdateSubscriptions(ctx context.Context, sessio
 
 	return nil
 }
+
+// ListCursors returns ACK cursors with optional filtering by server_id or mailbox_id.
+func (r *MongoSessionRepository) ListCursors(ctx context.Context, serverID string, mailboxID string, limit, offset int) ([]*types.MailboxCursor, int64, error) {
+	filter := bson.M{}
+	if serverID != "" {
+		filter["server_id"] = serverID
+	}
+	if mailboxID != "" {
+		filter["mailbox_id"] = mailboxID
+	}
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	total, err := r.cursors.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count cursors: %w", err)
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "server_id", Value: 1}, {Key: "mailbox_id", Value: 1}}).
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset))
+
+	cur, err := r.cursors.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list cursors: %w", err)
+	}
+	defer cur.Close(ctx)
+
+	var results []*types.MailboxCursor
+	if err := cur.All(ctx, &results); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode cursors: %w", err)
+	}
+
+	return results, total, nil
+}
+
+// ResetCursor sets last_acked_seq to the specified value for a (server_id, mailbox_id) cursor.
+func (r *MongoSessionRepository) ResetCursor(ctx context.Context, serverID string, mailboxID string, seq uint64) error {
+	filter := bson.M{
+		"server_id":  serverID,
+		"mailbox_id": mailboxID,
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"last_acked_seq": seq,
+			"updated_at":     time.Now().Format(time.RFC3339),
+		},
+	}
+
+	result, err := r.cursors.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to reset cursor: %w", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("cursor not found for server_id=%s mailbox_id=%s", serverID, mailboxID)
+	}
+
+	return nil
+}

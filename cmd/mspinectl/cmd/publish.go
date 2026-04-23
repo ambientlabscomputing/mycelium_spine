@@ -13,20 +13,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	publishType       string
-	publishQoS        string
-	publishData       string
-	publishFile       string
-	publishTargetType string
-	publishTargetID   string
-)
+func newPublishCmd(f *clientFlags) *cobra.Command {
+	var (
+		msgType    string
+		qosStr     string
+		data       string
+		file       string
+		targetType string
+		targetID   string
+	)
 
-var publishCmd = &cobra.Command{
-	Use:   "publish",
-	Short: "Publish a message to targets",
-	Long:  `Publish an envelope (message) to one or more targets.`,
-	Example: `  # Publish a command to a server
+	cmd := &cobra.Command{
+		Use:   "publish",
+		Short: "Publish a message to targets",
+		Long:  `Publish an envelope (message) to one or more targets.`,
+		Example: `  # Publish a command to a server
   mspinectl publish --type command.deploy --qos command \
     --target-type server --target-id prod-01 \
     --data '{"version":"v2.0"}'
@@ -35,137 +36,105 @@ var publishCmd = &cobra.Command{
   mspinectl publish --type command.config --qos command \
     --target-type cluster --target-id cluster-west \
     --file ./config.json`,
-	RunE: runPublish,
-}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkRequired("server-id", f.serverID); err != nil {
+				return err
+			}
+			if err := checkRequired("org-id", f.orgID); err != nil {
+				return err
+			}
 
-func init() {
-	rootCmd.AddCommand(publishCmd)
+			var payload []byte
+			if data != "" {
+				payload = []byte(data)
+			} else if file != "" {
+				b, err := os.ReadFile(file)
+				if err != nil {
+					return fmt.Errorf("failed to read file: %w", err)
+				}
+				payload = b
+			} else {
+				return fmt.Errorf("either --data or --file must be provided")
+			}
 
-	publishCmd.Flags().StringVar(&publishType, "type", "", "Message type (e.g., command.deploy)")
-	publishCmd.Flags().StringVar(&publishQoS, "qos", "control", "QoS level: command, control, or telemetry")
-	publishCmd.Flags().StringVar(&publishData, "data", "", "JSON payload data")
-	publishCmd.Flags().StringVar(&publishFile, "file", "", "File containing JSON payload")
-	publishCmd.Flags().StringVar(&publishTargetType, "target-type", "", "Target type: server, cluster, org, service, or broadcast")
-	publishCmd.Flags().StringVar(&publishTargetID, "target-id", "", "Target ID")
+			if !json.Valid(payload) {
+				return fmt.Errorf("payload is not valid JSON")
+			}
 
-	publishCmd.MarkFlagRequired("type")
-	publishCmd.MarkFlagRequired("target-type")
-}
+			qos, err := parseQoS(qosStr)
+			if err != nil {
+				return err
+			}
 
-func runPublish(cmd *cobra.Command, args []string) error {
-	// Validate required flags
-	if err := checkRequired("server-id", serverID); err != nil {
-		return err
-	}
-	if err := checkRequired("org-id", orgID); err != nil {
-		return err
-	}
+			tt, err := parseUMSTargetType(targetType)
+			if err != nil {
+				return err
+			}
 
-	// Get payload
-	var payload []byte
-	if publishData != "" {
-		payload = []byte(publishData)
-	} else if publishFile != "" {
-		data, err := os.ReadFile(publishFile)
-		if err != nil {
-			return fmt.Errorf("failed to read file: %w", err)
-		}
-		payload = data
-	} else {
-		return fmt.Errorf("either --data or --file must be provided")
-	}
+			envelope := &umsv1.Envelope{
+				Type:        msgType,
+				Qos:         qos,
+				Payload:     payload,
+				OrgId:       f.orgID,
+				RequiresAck: qos != umsv1.QoS_QOS_TELEMETRY,
+			}
 
-	// Validate JSON
-	if !json.Valid(payload) {
-		return fmt.Errorf("payload is not valid JSON")
-	}
+			target := &umsv1.Target{
+				TargetType: tt,
+				TargetId:   targetID,
+				OrgId:      f.orgID,
+			}
 
-	// Parse QoS
-	qos, err := parseQoS(publishQoS)
-	if err != nil {
-		return err
-	}
+			publisher, err := sdk.NewPublisher(f.serverAddr)
+			if err != nil {
+				return fmt.Errorf("failed to create publisher: %w", err)
+			}
+			defer publisher.Close()
 
-	// Parse target type
-	targetType, err := parseTargetType(publishTargetType)
-	if err != nil {
-		return err
-	}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-	// Create envelope
-	envelope := &umsv1.Envelope{
-		Type:        publishType,
-		Qos:         qos,
-		Payload:     payload,
-		OrgId:       orgID,
-		RequiresAck: qos != umsv1.QoS_QOS_TELEMETRY,
-	}
+			if f.verbose {
+				fmt.Printf("Publishing to %s: %s\n", f.serverAddr, msgType)
+			}
 
-	// Create target
-	target := &umsv1.Target{
-		TargetType: targetType,
-		TargetId:   publishTargetID,
-		OrgId:      orgID,
-	}
+			resp, err := publisher.Publish(ctx, envelope, []*umsv1.Target{target})
+			if err != nil {
+				return fmt.Errorf("failed to publish: %w", err)
+			}
 
-	// Create publisher
-	publisher, err := sdk.NewPublisher(serverAddr)
-	if err != nil {
-		return fmt.Errorf("failed to create publisher: %w", err)
-	}
-	defer publisher.Close()
-
-	// Publish with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if verbose {
-		fmt.Printf("Publishing to %s: %s\n", serverAddr, publishType)
+			fmt.Printf("Published envelope ID: %s\n", envelope.EnvelopeId)
+			if len(resp.MailboxSeqs) > 0 {
+				fmt.Printf("Mailbox sequences:\n")
+				for mailboxID, seq := range resp.MailboxSeqs {
+					fmt.Printf("  %s: %d\n", mailboxID, seq)
+				}
+			}
+			return nil
+		},
 	}
 
-	resp, err := publisher.Publish(ctx, envelope, []*umsv1.Target{target})
-	if err != nil {
-		return fmt.Errorf("failed to publish: %w", err)
-	}
+	cmd.Flags().StringVar(&msgType, "type", "", "Message type (e.g., command.deploy)")
+	cmd.Flags().StringVar(&qosStr, "qos", "control", "QoS level: command, control, or telemetry")
+	cmd.Flags().StringVar(&data, "data", "", "JSON payload data")
+	cmd.Flags().StringVar(&file, "file", "", "File containing JSON payload")
+	cmd.Flags().StringVar(&targetType, "target-type", "", "Target type: server, cluster, org, service, or broadcast")
+	cmd.Flags().StringVar(&targetID, "target-id", "", "Target ID")
+	_ = cmd.MarkFlagRequired("type")
+	_ = cmd.MarkFlagRequired("target-type")
 
-	// Print results
-	fmt.Printf("Published envelope ID: %s\n", envelope.EnvelopeId)
-	if len(resp.MailboxSeqs) > 0 {
-		fmt.Printf("Mailbox sequences:\n")
-		for mailboxID, seq := range resp.MailboxSeqs {
-			fmt.Printf("  %s: %d\n", mailboxID, seq)
-		}
-	}
-
-	return nil
+	return cmd
 }
 
 func parseQoS(s string) (umsv1.QoS, error) {
-	switch strings.ToLower(s) {
-	case "command":
+	switch strings.ToUpper(s) {
+	case "COMMAND":
 		return umsv1.QoS_QOS_COMMAND, nil
-	case "control":
+	case "CONTROL":
 		return umsv1.QoS_QOS_CONTROL, nil
-	case "telemetry":
+	case "TELEMETRY":
 		return umsv1.QoS_QOS_TELEMETRY, nil
 	default:
-		return umsv1.QoS_QOS_UNSPECIFIED, fmt.Errorf("invalid qos: %s (must be command, control, or telemetry)", s)
-	}
-}
-
-func parseTargetType(s string) (umsv1.TargetType, error) {
-	switch strings.ToLower(s) {
-	case "server":
-		return umsv1.TargetType_TARGET_TYPE_SERVER, nil
-	case "cluster":
-		return umsv1.TargetType_TARGET_TYPE_CLUSTER, nil
-	case "org":
-		return umsv1.TargetType_TARGET_TYPE_ORG, nil
-	case "service":
-		return umsv1.TargetType_TARGET_TYPE_SERVICE, nil
-	case "broadcast":
-		return umsv1.TargetType_TARGET_TYPE_BROADCAST, nil
-	default:
-		return umsv1.TargetType_TARGET_TYPE_UNSPECIFIED, fmt.Errorf("invalid target-type: %s", s)
+		return umsv1.QoS_QOS_UNSPECIFIED, fmt.Errorf("unknown QoS %q", s)
 	}
 }

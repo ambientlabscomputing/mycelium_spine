@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package spineadmin;
+
+option go_package = "github.com/ambientlabscomputing/mycelium_spine/proto/admin;admin";
+
+import "proto/admin/common.proto";
+
+service AdminHealthService {
+  rpc Check(Empty) returns (HealthCheckResponse) {}
+  rpc Detail(Empty) returns (HealthDetailResponse) {}
+}
+
+message HealthCheckResponse {
+  string status           = 1;
+  int32  active_sessions  = 2;
+  int64  total_mailboxes  = 3;
+  string uptime           = 4;
+  string version          = 5;
+}
+
+message HealthDetailResponse {
+  string status           = 1;
+  int32  active_sessions  = 2;
+  int64  total_mailboxes  = 3;
+  string uptime           = 4;
+  string version          = 5;
+  // Worker pool stats keyed by pool name.
+  map<string, WorkerPoolStats> worker_pools = 6;
+  // Flow control policy summary.
+  FlowControlConfig flow_control = 7;
+  bool   tls_enabled    = 8;
+  string mtls_mode      = 9;
+}
+
+message WorkerPoolStats {
+  int32 active_workers    = 1;
+  int32 queue_depth       = 2;
+  int32 queue_capacity    = 3;
+  int64 tasks_processed   = 4;
+  int64 task_errors       = 5;
+}
+
+message FlowControlConfig {
+  int32 max_inflight_total    = 1;
+  int32 max_inflight_command  = 2;
+  int32 max_inflight_control  = 3;
+  int32 max_inflight_telemetry = 4;
+  int32 max_batch_bytes       = 5;
+}

@@ -32,6 +32,7 @@ type SessionService interface {
 	GetSession(ctx context.Context, sessionID string) (*types.Session, error)
 	RegisterSession(ctx context.Context, session *types.Session) error
 	UnregisterSession(ctx context.Context, sessionID string) error
+	ListActiveSessions(ctx context.Context) ([]*types.Session, error)
 }
 
 // DeliveryService manages envelope delivery to active sessions
@@ -153,6 +154,16 @@ func (s *AppService) GetAckService() AckService {
 // GetSubscribeService returns the subscribe service
 func (s *AppService) GetSubscribeService() SubscribeService {
 	return s.subscribeService
+}
+
+// GetPoolManager returns the worker pool manager for admin inspection.
+func (s *AppService) GetPoolManager() *workers.PoolManager {
+	return s.poolManager
+}
+
+// GetRepo returns the repository for admin inspection.
+func (s *AppService) GetRepo() repository.Repository {
+	return s.repo
 }
 
 // Legacy compatibility

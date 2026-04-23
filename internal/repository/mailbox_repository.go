@@ -196,3 +196,69 @@ func (r *MongoMailboxRepository) EnforceRetention(ctx context.Context, mailboxID
 
 	return nil
 }
+
+// ListMailboxes returns mailboxes with optional filtering and pagination.
+func (r *MongoMailboxRepository) ListMailboxes(ctx context.Context, orgID string, targetType string, limit, offset int) ([]*types.Mailbox, int64, error) {
+	filter := bson.M{}
+	if orgID != "" {
+		filter["org_id"] = orgID
+	}
+	if targetType != "" {
+		filter["target_type"] = targetType
+	}
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	total, err := r.mailboxes.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count mailboxes: %w", err)
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "created_at", Value: 1}}).
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset))
+
+	cursor, err := r.mailboxes.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list mailboxes: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var mailboxes []*types.Mailbox
+	if err := cursor.All(ctx, &mailboxes); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode mailboxes: %w", err)
+	}
+
+	return mailboxes, total, nil
+}
+
+// ClearMailbox deletes all envelopes for a mailbox and resets next_seq to 1.
+func (r *MongoMailboxRepository) ClearMailbox(ctx context.Context, mailboxID string) (int64, error) {
+	result, err := r.envelopes.DeleteMany(ctx, bson.M{"mailbox_id": mailboxID})
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete envelopes: %w", err)
+	}
+
+	// Reset next_seq to 1
+	_, err = r.mailboxes.UpdateOne(ctx,
+		bson.M{"mailbox_id": mailboxID},
+		bson.M{"$set": bson.M{"next_seq": uint64(1), "updated_at": time.Now().Format(time.RFC3339)}},
+	)
+	if err != nil {
+		return result.DeletedCount, fmt.Errorf("failed to reset next_seq: %w", err)
+	}
+
+	return result.DeletedCount, nil
+}
+
+// CountMailboxes returns the total number of mailboxes.
+func (r *MongoMailboxRepository) CountMailboxes(ctx context.Context) (int64, error) {
+	count, err := r.mailboxes.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count mailboxes: %w", err)
+	}
+	return count, nil
+}
