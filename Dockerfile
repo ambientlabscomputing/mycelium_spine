@@ -32,6 +32,12 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -installsuffix cgo
     -o spine \
     cmd/serve/main.go
 
+# Build the admin CLI (mspinectl)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -installsuffix cgo \
+    -ldflags="-w -s" \
+    -o mspinectl \
+    ./cmd/mspinectl
+
 # ============================================================================
 # Stage 2: Runtime
 # ============================================================================
@@ -49,6 +55,7 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /build/spine .
+COPY --from=builder /build/mspinectl /usr/local/bin/mspinectl
 
 # Copy config examples (actual config should be mounted at runtime)
 COPY --from=builder /build/config.yaml.example ./config.yaml.example
